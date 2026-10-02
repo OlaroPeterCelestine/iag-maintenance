@@ -527,7 +527,7 @@ export function pmTemplateToRecord(row: Row): Omit<AppRecord, "id"> & { id?: str
   };
 }
 
-export const pmTemplates = resourceAdapter({
+const pmTemplatesBase = resourceAdapter({
   service: "mes",
   path: "/api/v1/pm-templates",
   toRecord: pmTemplateToRecord,
@@ -544,6 +544,38 @@ export const pmTemplates = resourceAdapter({
   noUpdate: true,
   noDelete: true,
 });
+
+/**
+ * PATCH /pm-templates/:id (iag-mes#5). The code is the template's business key
+ * and stays fixed; schedules point at the row by id, so an edit to the
+ * interval or the checklist carries to every machine the template is on.
+ */
+export const pmTemplates: RecordAdapter = {
+  ...pmTemplatesBase,
+  readOnly: false,
+  async update(_ctx, id, record) {
+    if (record.code !== undefined) {
+      throw new Error("A template's code is fixed. Create a new template for a new code.");
+    }
+    const payload = await gatewayFetch({
+      service: "mes",
+      path: `/api/v1/pm-templates/${encodeURIComponent(id)}`,
+      method: "PATCH",
+      body: omitEmpty({
+        name: record.name,
+        asset_category: record.assetCategory,
+        interval_days: numberOrUndefined(record.intervalDays),
+        // An emptied checklist is a real edit, so it is sent as [] rather than
+        // dropped; omitEmpty keeps arrays.
+        checklist: record.checklist !== undefined ? checklistLines(record.checklist) : undefined,
+        // MES merges attrs key by key.
+        attrs: record.notes !== undefined ? { notes: record.notes } : undefined,
+      }),
+    });
+    const row = unwrapOne<Row>(payload);
+    return row ? withMeta(pmTemplateToRecord(row), id) : null;
+  },
+};
 
 /* ─────────────────────────── PM schedules ────────────────────────── */
 
@@ -634,6 +666,34 @@ export const pmSchedules: RecordAdapter = {
     if (!row) return null;
     const byId = new Map([[str(pick(template, "id")), template]]);
     return withMeta(scheduleToRecord(row, byId), str(pick(row, "id")));
+  },
+
+  /**
+   * PATCH /pm-schedules/:id (iag-mes#5) moves the next due date; MES sets the
+   * status from it. The template and the machine are the schedule's identity
+   * — a different pair is a different schedule.
+   */
+  async update(_ctx, id, record) {
+    if (record.template !== undefined || record.workCenter !== undefined) {
+      throw new Error(
+        "A schedule's template and machine are fixed. Add a new schedule for a different pair.",
+      );
+    }
+    const nextDue = plantInstant(record.nextDue, "06:00");
+    if (!nextDue) throw new Error("Give the schedule a next due date.");
+    const [templates, payload] = await Promise.all([
+      listTemplates(),
+      gatewayFetch({
+        service: "mes",
+        path: `/api/v1/pm-schedules/${encodeURIComponent(id)}`,
+        method: "PATCH",
+        body: { next_due_at: nextDue },
+      }),
+    ]);
+    const row = unwrapOne<Row>(payload);
+    if (!row) return null;
+    const byId = new Map(templates.map((t) => [str(pick(t, "id")), t]));
+    return withMeta(scheduleToRecord(row, byId), id);
   },
 };
 

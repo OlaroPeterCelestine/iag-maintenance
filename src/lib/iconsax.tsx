@@ -3,6 +3,7 @@
 import type { ModuleSlug } from "@/lib/module-data";
 import type { Icon, IconProps } from "iconsax-react";
 import {
+  Activity,
   ArchiveBox,
   Bank,
   Book1,
@@ -21,6 +22,7 @@ import {
   DocumentText,
   FolderOpen,
   Hierarchy2,
+  LampCharge,
   MoneyRecive,
   MoneySend,
   People,
@@ -30,6 +32,7 @@ import {
   ReceiptItem,
   Repeat,
   Setting2,
+  Setting3,
   Setting4,
   ShieldTick,
   Shop,
@@ -39,6 +42,7 @@ import {
   TimerPause,
   TruckFast,
   WalletMoney,
+  Warning2,
 } from "iconsax-react";
 
 /**
@@ -99,6 +103,10 @@ export const SIDEBAR_ITEM_ICONS: Record<string, Icon> = {
   "Preventive Schedules": Repeat,
   "PM Templates": Setting4,
   "Downtime": TimerPause,
+  "Spare Parts": Setting3,
+  "Reliability": Activity,
+  "Alerts": Warning2,
+  "Recommendations": LampCharge,
   "Bill of Materials": Hierarchy2,
   "Batch Records": DocumentText,
   "Roast Batches": Coffee,
