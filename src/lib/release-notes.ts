@@ -27,3 +27,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     ],
   },
 ];
+
+export function latestRelease(): ReleaseNote {
+  return RELEASE_NOTES[0];
+}
