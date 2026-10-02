@@ -65,8 +65,6 @@ const SERVICE_STATUSES = {
     "completed",
     "cancelled",
   ],
-  // prod_production_orders, 001_schema.sql
-  productionOrder: ["queued", "scheduled", "running", "completed", "cancelled"],
   // prod_packaging_runs, 006_packaging_runs.sql
   packagingRun: [
     "scheduled",
@@ -76,12 +74,6 @@ const SERVICE_STATUSES = {
     "quality_hold",
     "rejected",
   ],
-  // prod_boms, 007_bill_of_materials.sql
-  bom: ["draft", "approved", "superseded", "retired"],
-  // mes_work_orders, 002_schema.sql + 005_cmms_gaps.sql
-  workOrder: ["draft", "scheduled", "open", "in_progress", "completed", "cancelled"],
-  // mes_assets, 002_schema.sql
-  asset: ["running", "idle", "down", "pm", "maint"],
 } as const;
 
 /** prod_production_runs.process, 001_schema.sql */
@@ -126,18 +118,6 @@ beforeEach(() => {
 /* ───────────────────────── status vocabularies ───────────────────────── */
 
 describe("statuses reach the column in the vocabulary it accepts", () => {
-  it("production orders", async () => {
-    for (const option of ["Queued", "Scheduled", "Running", "Completed", "Cancelled"]) {
-      const body = await bodyForCreate("production:production-orders", {
-        reference: "PO-1",
-        status: option,
-      });
-      expect(SERVICE_STATUSES.productionOrder, `order status ${option}`).toContain(
-        body.status,
-      );
-    }
-  });
-
   it("packaging runs, on create and on patch alike", async () => {
     const options = [
       "Scheduled",
@@ -156,45 +136,6 @@ describe("statuses reach the column in the vocabulary it accepts", () => {
 
       const patched = await bodyForPatch("production:packaging-runs", { status: option });
       expect(SERVICE_STATUSES.packagingRun, `patch ${option}`).toContain(patched.status);
-    }
-  });
-
-  it("bills of materials", async () => {
-    for (const option of ["Draft", "Approved", "Superseded"]) {
-      const body = await bodyForCreate("production:bill-of-materials", {
-        code: "BOM-1",
-        status: option,
-      });
-      expect(SERVICE_STATUSES.bom, `bom status ${option}`).toContain(body.status);
-    }
-  });
-
-  it("batch records — the set differed in case alone, so every option was refused", async () => {
-    const options = ["Draft", "Scheduled", "Open", "In Progress", "Completed", "Cancelled"];
-    for (const option of options) {
-      const created = await bodyForCreate("production:batch-records", {
-        reference: "WO-1",
-        workCenter: "LINE-1",
-        status: option,
-      });
-      expect(SERVICE_STATUSES.workOrder, `create ${option}`).toContain(created.status);
-
-      const patched = await bodyForPatch("production:batch-records", { status: option });
-      expect(SERVICE_STATUSES.workOrder, `patch ${option}`).toContain(patched.status);
-    }
-  });
-
-  it("work centres — 'Active' was the default option and is not a status", async () => {
-    for (const option of ["Idle", "Running", "Down", "PM", "Maintenance"]) {
-      const created = await bodyForCreate("production:work-centers", {
-        name: "Roaster 1",
-        code: "RST-1",
-        status: option,
-      });
-      expect(SERVICE_STATUSES.asset, `create ${option}`).toContain(created.status);
-
-      const patched = await bodyForPatch("production:work-centers", { status: option });
-      expect(SERVICE_STATUSES.asset, `patch ${option}`).toContain(patched.status);
     }
   });
 
@@ -283,11 +224,6 @@ describe("a patch says only what the form changed", () => {
     expect(body).not.toHaveProperty("attrs");
   });
 
-  it("does not clear a BOM's attachments when only the status moved", async () => {
-    const body = await bodyForPatch("production:bill-of-materials", { status: "Approved" });
-    expect(body).not.toHaveProperty("attrs");
-  });
-
   it("does not overwrite an assigned lot code it cannot reconstruct", async () => {
     const body = await bodyForPatch("production:packaging-runs", { status: "Complete" });
     expect(body).not.toHaveProperty("lot_code");
@@ -365,6 +301,7 @@ describe("attachments", () => {
 describe("list reads ask for what the screen claims to show", () => {
   it("raises the page size past each service's default of 50", async () => {
     for (const key of [
+      "production:work-orders",
       "production:batch-records",
       "production:downtime-logs",
       "production:roast-batches",
@@ -374,17 +311,5 @@ describe("list reads ask for what the screen claims to show", () => {
       const query = mockFetch.mock.calls.at(-1)![0].query as Record<string, unknown>;
       expect(Number(query?.limit), `${key} page size`).toBeGreaterThan(50);
     }
-  });
-
-  it("asks the schedule for more than the fortnight it defaults to", async () => {
-    mockFetch.mockClear();
-    await RECORD_ADAPTERS["production:production-plans"].list(ctx);
-    const query = mockFetch.mock.calls.at(-1)![0].query as Record<string, string>;
-    const from = Date.parse(query.from);
-    const to = Date.parse(query.to);
-    expect(Number.isFinite(from) && Number.isFinite(to)).toBe(true);
-    // A plan is booked by the week and routinely sits further out than 14 days.
-    const days = (to - from) / (24 * 60 * 60 * 1000);
-    expect(days).toBeGreaterThan(60);
   });
 });

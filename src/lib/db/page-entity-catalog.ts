@@ -222,20 +222,19 @@ export const PAGE_ENTITY_CATALOG: PageEntityMeta[] =
     "module": "production",
     "storageModule": "production",
     "entity": "batch-records",
-    "label": "Batch Records",
+    "label": "Job Cards",
     "table": "page_batch_records",
     "columns": [
-      "reference",
+      "workOrder",
       "date",
-      "productionOrder",
-      "bom",
       "workCenter",
-      "operator",
-      "inputQuantity",
-      "outputQuantity",
-      "yieldPercent",
+      "technician",
+      "hours",
+      "meterReading",
+      "partsUsed",
+      "completion",
       "status",
-      "steps",
+      "workDone",
       "attachments"
     ]
   },
@@ -1051,16 +1050,17 @@ export const PAGE_ENTITY_CATALOG: PageEntityMeta[] =
     "module": "production",
     "storageModule": "production",
     "entity": "downtime-logs",
-    "label": "Downtime Logs",
+    "label": "Downtime",
     "table": "page_downtime_logs",
     "columns": [
-      "reference",
       "date",
+      "startTime",
       "workCenter",
       "reason",
-      "minutes",
-      "reportedBy",
       "category",
+      "reportedBy",
+      "kgLost",
+      "minutes",
       "status",
       "notes"
     ]
@@ -4014,10 +4014,13 @@ export const PAGE_ENTITY_CATALOG: PageEntityMeta[] =
       "name",
       "code",
       "type",
+      "section",
       "location",
-      "capacityPerHour",
-      "supervisor",
+      "criticality",
       "status",
+      "capacityPerHour",
+      "purchasedOn",
+      "supervisor",
       "notes"
     ]
   },
@@ -4075,6 +4078,61 @@ export const PAGE_ENTITY_CATALOG: PageEntityMeta[] =
       "wasteQuantity",
       "owner",
       "status",
+      "notes"
+    ]
+  },
+  {
+    "module": "production",
+    "storageModule": "production",
+    "entity": "work-orders",
+    "label": "Work Orders",
+    "table": "page_work_orders",
+    "columns": [
+      "reference",
+      "title",
+      "workCenter",
+      "woType",
+      "priority",
+      "dueDate",
+      "assignee",
+      "status",
+      "estimatedHours",
+      "partsRequired",
+      "estimatedCost",
+      "pmTemplate",
+      "checklist",
+      "description",
+      "attachments"
+    ]
+  },
+  {
+    "module": "production",
+    "storageModule": "production",
+    "entity": "pm-schedules",
+    "label": "Preventive Schedules",
+    "table": "page_pm_schedules",
+    "columns": [
+      "template",
+      "workCenter",
+      "nextDue",
+      "templateName",
+      "intervalDays",
+      "lastDone",
+      "status"
+    ]
+  },
+  {
+    "module": "production",
+    "storageModule": "production",
+    "entity": "pm-templates",
+    "label": "PM Templates",
+    "table": "page_pm_templates",
+    "columns": [
+      "code",
+      "name",
+      "assetCategory",
+      "intervalDays",
+      "checklist",
       "notes"
     ]
   }
