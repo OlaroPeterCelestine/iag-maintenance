@@ -4088,7 +4088,7 @@ export const PAGE_ENTITY_CATALOG: PageEntityMeta[] =
     "label": "Work Orders",
     "table": "page_work_orders",
     "columns": [
-      "reference",
+      "num",
       "title",
       "workCenter",
       "woType",
@@ -4134,6 +4134,90 @@ export const PAGE_ENTITY_CATALOG: PageEntityMeta[] =
       "intervalDays",
       "checklist",
       "notes"
+    ]
+  },
+  {
+    "module": "production",
+    "storageModule": "production",
+    "entity": "spare-parts",
+    "label": "Spare Parts",
+    "table": "page_spare_parts",
+    "columns": [
+      "name",
+      "code",
+      "partNumber",
+      "manufacturer",
+      "fitsMachineTypes",
+      "fitsMachines",
+      "unit",
+      "reorderLevel",
+      "maxQty",
+      "storeLocation",
+      "status",
+      "onHand",
+      "available",
+      "notes"
+    ]
+  },
+  {
+    "module": "production",
+    "storageModule": "production",
+    "entity": "reliability",
+    "label": "Reliability",
+    "table": "page_reliability",
+    "columns": [
+      "workCenter",
+      "mtbfHours",
+      "mttrHours",
+      "availability",
+      "failures",
+      "status",
+      "since"
+    ]
+  },
+  {
+    "module": "production",
+    "storageModule": "production",
+    "entity": "alerts",
+    "label": "Alerts",
+    "table": "page_alerts",
+    "columns": [
+      "date",
+      "severity",
+      "workCenter",
+      "message",
+      "status",
+      "acknowledgedOn",
+      "resolvedOn"
+    ]
+  },
+  {
+    "module": "production",
+    "storageModule": "production",
+    "entity": "recommendations",
+    "label": "Recommendations",
+    "table": "page_recommendations",
+    "columns": [
+      "date",
+      "title",
+      "workCenter",
+      "kind",
+      "confidence",
+      "body",
+      "status"
+    ]
+  },
+  {
+    "module": "production",
+    "storageModule": "production",
+    "entity": "technicians",
+    "label": "Technicians",
+    "table": "page_technicians",
+    "columns": [
+      "name",
+      "role",
+      "plant",
+      "status"
     ]
   }
 ]

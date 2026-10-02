@@ -560,16 +560,18 @@ function workCenterSelectOptions(typeFilter?: RegExp): {
 const MAINTENANCE_RECORD_PICKERS: Record<
   string,
   {
-    /** The form this picker belongs to; the field key alone is too common. */
-    on: string;
+    /** The forms this picker belongs to; the field key alone is too common. */
+    on: string[];
     entity: string;
     placeholder: string;
     empty: string;
+    /** Accept a typed value that is not in the list. */
+    allowCustom?: boolean;
     option: (row: ManagerRecord) => { value: string; label: string; meta?: string } | null;
   }
 > = {
   workOrder: {
-    on: "batch-records",
+    on: ["batch-records"],
     entity: "work-orders",
     placeholder: "Select work order…",
     empty: "No open work orders — raise one under Work Orders first.",
@@ -585,7 +587,7 @@ const MAINTENANCE_RECORD_PICKERS: Record<
     },
   },
   template: {
-    on: "pm-schedules",
+    on: ["pm-schedules"],
     entity: "pm-templates",
     placeholder: "Select PM template…",
     empty: "No PM templates yet — add one under PM Templates first.",
@@ -601,6 +603,29 @@ const MAINTENANCE_RECORD_PICKERS: Record<
   },
 };
 
+/**
+ * MES technicians (iag-mes#5). MES stores the assignee as a name, so the
+ * picker writes the name, and still takes a typed one — for a contractor, or
+ * before the technicians route is deployed and the list is empty.
+ */
+const technicianPicker = (on: string[]) => ({
+  on,
+  entity: "technicians",
+  placeholder: "Select technician…",
+  empty: "No technicians listed in MES — type a name.",
+  allowCustom: true,
+  option: (row: ManagerRecord) => {
+    if (/inactive/i.test(row.status || "")) return null;
+    const value = (row.name || "").trim();
+    if (!value) return null;
+    return { value, label: value, meta: [row.role, row.plant].filter(Boolean).join(" · ") || undefined };
+  },
+});
+MAINTENANCE_RECORD_PICKERS.assignee = technicianPicker(["work-orders"]);
+MAINTENANCE_RECORD_PICKERS.technician = technicianPicker(["batch-records"]);
+MAINTENANCE_RECORD_PICKERS.supervisor = technicianPicker(["work-centers"]);
+MAINTENANCE_RECORD_PICKERS.reportedBy = technicianPicker(["downtime-logs"]);
+
 function maintenanceRecordOptions(fieldKey: string) {
   const picker = MAINTENANCE_RECORD_PICKERS[fieldKey];
   if (!picker) return [];
@@ -609,7 +634,10 @@ function maintenanceRecordOptions(fieldKey: string) {
     const opt = picker.option(row);
     if (opt) out.push({ ...opt, searchText: `${opt.label} ${opt.meta || ""}` });
   }
-  return out.sort((a, b) => b.value.localeCompare(a.value));
+  // Work orders newest first (WO-n); everything else alphabetical.
+  return picker.entity === "work-orders"
+    ? out.sort((a, b) => b.value.localeCompare(a.value, undefined, { numeric: true }))
+    : out.sort((a, b) => a.label.localeCompare(b.label));
 }
 
 function statusMatchesInactive(row: ManagerRecord) {
@@ -2659,6 +2687,10 @@ const MES_MAINTENANCE_ENTITIES = new Set([
   "pm-templates",
   "pm-schedules",
   "downtime-logs",
+  "spare-parts",
+  "reliability",
+  "alerts",
+  "recommendations",
 ]);
 
 function supportsSaveAsDraft(entityKey: string) {
@@ -2875,7 +2907,7 @@ function RecordFormModal({
   const [maintenancePickers, setMaintenancePickers] = useState<Record<string, string>>(() => {
     const out: Record<string, string> = {};
     for (const [key, picker] of Object.entries(MAINTENANCE_RECORD_PICKERS)) {
-      if (picker.on === definition.key && state?.record?.[key]) out[key] = state.record[key];
+      if (picker.on.includes(definition.key) && state?.record?.[key]) out[key] = state.record[key];
     }
     return out;
   });
@@ -4947,7 +4979,7 @@ function RecordFormModal({
                   </div>
                 );
               }
-              if (MAINTENANCE_RECORD_PICKERS[field.key]?.on === definition.key) {
+              if (MAINTENANCE_RECORD_PICKERS[field.key]?.on.includes(definition.key)) {
                 void staffListsTick;
                 const picker = MAINTENANCE_RECORD_PICKERS[field.key]!;
                 const current = maintenancePickers[field.key] || value;
@@ -4974,6 +5006,8 @@ function RecordFormModal({
                       value={current}
                       readOnly={locked}
                       allowClear={!field.required}
+                      allowCustom={picker.allowCustom}
+                      customLabel={picker.allowCustom ? (text) => `Use “${text}”` : undefined}
                       options={pickerOptions}
                       placeholder={picker.placeholder}
                       searchPlaceholder={picker.placeholder}

@@ -860,42 +860,52 @@ function computeModuleKpis(slug: ModuleSlug): ModuleKpi[] {
       ];
     }
     case "production": {
-      const machines = loadEntityRecords("production", "work-centers");
-      const activeMachines = machines.filter((m) => !statusMatches(m, /inactive|retired|void/i));
-      const maintenance = machines.filter((m) => statusMatches(m, /maintenance/i));
-      const orders = loadEntityRecords("production", "production-orders");
+      // Maintenance — this app's "production" module is the machinery
+      // maintenance desk on iag-mes. The strip used to count coffee
+      // production orders and roast/pack runs, which this app never shows.
+      const machines = loadEntityRecords("production", "work-centers").filter(
+        (m) => !statusMatches(m, /retired|inactive|void/i),
+      );
+      const stopped = machines.filter((m) => statusMatches(m, /^down$|maintenance|^pm$/i));
+      const orders = loadEntityRecords("production", "work-orders");
       const openOrders = orders.filter(
         (o) => !statusMatches(o, /complete|completed|cancelled|canceled|void/i),
       );
-      const batches = loadEntityRecords("production", "batch-records");
-      const roast = loadEntityRecords("production", "roast-batches");
-      const pack = loadEntityRecords("production", "packaging-runs");
+      const overdueOrders = openOrders.filter((o) => o.dueDate && o.dueDate < new Date().toISOString().slice(0, 10));
+      const overduePm = loadEntityRecords("production", "pm-schedules").filter((s) =>
+        statusMatches(s, /overdue/i),
+      );
       const downtime = loadEntityRecords("production", "downtime-logs").filter((d) =>
         statusMatches(d, /open/i),
       );
-      const runsMtd = [...batches, ...roast, ...pack].filter((r) => inMonth(r, prefix));
       return [
         kpi(
-          "Active machines",
-          String(activeMachines.length),
-          maintenance.length ? `${maintenance.length} in maintenance` : countHint(machines.length),
-          maintenance.length === 0,
-          "shop floor",
+          "Machines",
+          String(machines.length),
+          stopped.length ? `${stopped.length} stopped` : countHint(machines.length),
+          stopped.length === 0,
+          "registered",
         ),
         kpi(
-          "Open orders",
+          "Open work orders",
           String(openOrders.length),
-          countHint(orders.length),
-          openOrders.length === 0,
-          "to run",
+          overdueOrders.length ? `${overdueOrders.length} past due` : countHint(orders.length),
+          overdueOrders.length === 0,
+          "to do",
         ),
-        kpi("Runs MTD", String(runsMtd.length), countHint(runsMtd.length), true, "batch · roast · pack"),
+        kpi(
+          "Overdue PM",
+          String(overduePm.length),
+          overduePm.length ? "service due" : "on schedule",
+          overduePm.length === 0,
+          "preventive",
+        ),
         kpi(
           "Open downtime",
           String(downtime.length),
           downtime.length ? "machines stopped" : "clear",
           downtime.length === 0,
-          "ops",
+          "stoppages",
         ),
       ];
     }

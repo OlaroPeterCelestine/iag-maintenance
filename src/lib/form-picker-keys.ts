@@ -196,10 +196,15 @@ const BY_ENTITY: Record<string, FormPickerRecordKey[]> = {
     { module: "projects", entity: "activities" },
     { module: "projects", entity: "contractors" },
   ],
-  "work-orders": [{ module: "production", entity: "work-centers" }],
+  "work-centers": [{ module: "production", entity: "technicians" }],
+  "work-orders": [
+    { module: "production", entity: "work-centers" },
+    { module: "production", entity: "technicians" },
+  ],
   "batch-records": [
     { module: "production", entity: "work-centers" },
     { module: "production", entity: "work-orders" },
+    { module: "production", entity: "technicians" },
   ],
   "pm-schedules": [
     { module: "production", entity: "work-centers" },
@@ -207,7 +212,10 @@ const BY_ENTITY: Record<string, FormPickerRecordKey[]> = {
   ],
   "roast-batches": [{ module: "production", entity: "work-centers" }],
   "packaging-runs": [{ module: "production", entity: "work-centers" }],
-  "downtime-logs": [{ module: "production", entity: "work-centers" }],
+  "downtime-logs": [
+    { module: "production", entity: "work-centers" },
+    { module: "production", entity: "technicians" },
+  ],
   "project-managers": [
     { module: "projects", entity: "contractors" },
   ],
