@@ -67,8 +67,8 @@ Technician, reported-by and fault are still free text — see below.
 
 ## Env
 
-See `.env.example`. **`NEXT_PUBLIC_FRONTEND_ONLY`** defaults to `true`, so a
-deployment that does not set it to `false` runs on localStorage and never
-reaches MES. It is inlined at build time — changing it needs a redeploy.
+See `.env.example`. **`NEXT_PUBLIC_FRONTEND_ONLY`** defaults to `false` — the
+app expects a backend. Only an explicit `true` (at build time) runs it on
+localStorage.
 
 Then `IAG_GATEWAY_ORIGIN`, `IAG_ADAPTER_ENABLED` and `IAG_MES_PREFIX`.
