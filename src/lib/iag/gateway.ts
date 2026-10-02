@@ -432,8 +432,16 @@ export function unwrapList<T = Record<string, unknown>>(payload: unknown): T[] {
       for (const inner of ["items", "data", "results", "records", "rows"]) {
         if (Array.isArray(nested[inner])) return nested[inner] as T[];
       }
+      const nestedArrays = Object.values(nested).filter(Array.isArray);
+      if (nestedArrays.length === 1) return nestedArrays[0] as T[];
     }
   }
+
+  // Fallback: a service that wraps its list under the resource name.
+  // Only unambiguous cases are accepted: exactly one array in the object.
+  const arrays = Object.values(rec).filter(Array.isArray);
+  if (arrays.length === 1) return arrays[0] as T[];
+
   return [];
 }
 
