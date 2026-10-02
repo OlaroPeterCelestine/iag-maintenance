@@ -96,6 +96,11 @@ describe("record adapter registry", () => {
  * production BOMs on iag-production.
  */
 describe("maintenance ownership", () => {
+  it("keeps spare parts in the warehouse item master", () => {
+    expect(RECORD_ADAPTERS["production:spare-parts"]?.service).toBe("warehouse");
+    expect(RECORD_ADAPTERS["production:spare-parts"]?.resource).toBe("/api/v1/items");
+  });
+
   it("keeps every maintenance tab on iag-mes", () => {
     const expected: Record<string, string> = {
       "production:work-centers": "/api/v1/assets",
@@ -104,6 +109,10 @@ describe("maintenance ownership", () => {
       "production:pm-templates": "/api/v1/pm-templates",
       "production:pm-schedules": "/api/v1/pm-schedules",
       "production:downtime-logs": "/api/v1/downtime-events",
+      "production:reliability": "/api/v1/reliability/summary",
+      "production:alerts": "/api/v1/alerts",
+      "production:recommendations": "/api/v1/ai/recommendations",
+      "production:technicians": "/api/v1/technicians",
     };
     for (const [key, resource] of Object.entries(expected)) {
       expect(RECORD_ADAPTERS[key]?.service, key).toBe("mes");
@@ -128,11 +137,23 @@ describe("maintenance ownership", () => {
   });
 
   it("declares only the verbs the service has", () => {
-    // GET + POST on PM templates and schedules; no PATCH, no DELETE yet.
+    // PM templates and schedules: GET, POST and PATCH (iag-mes#5); no DELETE.
     for (const key of ["production:pm-templates", "production:pm-schedules"]) {
-      expect(RECORD_ADAPTERS[key].update, key).toBeFalsy();
+      expect(RECORD_ADAPTERS[key].update, key).toBeTruthy();
       expect(RECORD_ADAPTERS[key].remove, key).toBeFalsy();
     }
+    // Reporting screens and the technician list are read-only.
+    for (const key of [
+      "production:reliability",
+      "production:alerts",
+      "production:recommendations",
+      "production:technicians",
+    ]) {
+      expect(RECORD_ADAPTERS[key].readOnly, key).toBe(true);
+      expect(RECORD_ADAPTERS[key].create || RECORD_ADAPTERS[key].update, key).toBeFalsy();
+    }
+    // Spare parts are retired through status, never deleted.
+    expect(RECORD_ADAPTERS["production:spare-parts"].remove).toBeFalsy();
     // MES has no DELETE anywhere.
     for (const key of ["production:work-orders", "production:batch-records", "production:work-centers"]) {
       expect(RECORD_ADAPTERS[key].remove, key).toBeFalsy();
