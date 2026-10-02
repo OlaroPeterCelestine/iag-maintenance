@@ -45,7 +45,7 @@
     "fflate": "^0.8.3",
     "iconsax-react": "^0.0.8",
     "input-otp": "^1.4.2",
-    "ioredis": "^5.11.1",
+    "ioredis": "^6.0.0",
     "jose": "^6.2.5",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
