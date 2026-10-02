@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A newer push to the same branch supersedes an in-flight run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web (typecheck, lint, tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # Blocks on NEW lint errors only. The repo has a pre-existing backlog
+      # (mostly react-hooks/set-state-in-effect, deliberately deferred —
+      # "needs per-screen verification, not a lint sweep") captured in
+      # .eslint-baseline.json. This fails only when a file's error count for a
+      # rule goes up, or a new file/rule pair appears — see
+      # scripts/lint-baseline.mts. Burn down the baseline with
+      # `npm run lint:baseline:write` once errors are actually fixed.
+      - name: Lint (new errors only)
+        run: npm run lint:baseline
+
+      # `npm test` also runs the Go suite, but backend/ is gitignored from this
+      # repo (it lives in iag-erp-api and has its own CI). test:web is the same
+      # suite minus that step, so it works from a clean clone.
+      - name: Tests
+        run: npm run test:web
+
+      - name: Build
+        run: npm run build
+        env:
+          # Required in production builds; CI only needs it to be set.
+          GO_API_URL: http://127.0.0.1:8080

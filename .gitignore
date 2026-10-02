@@ -1,0 +1,51 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# next.js
+.next/
+out/
+# leftover nested Next output (do not recreate)
+web/
+
+# env / secrets
+.env
+.env.*
+!.env.example
+
+# misc
+.DS_Store
+*.pem
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.vercel
+*.tsbuildinfo
+next-env.d.ts
+
+# Go API + ML/AI live in separate GitHub repos (keep local copies; do not push).
+#   API: https://github.com/OlaroPeterCelestine/iag-erp-api
+#   ML:  https://github.com/OlaroPeterCelestine/iag-erp-ml
+/backend/
+/ml-service/
+
+secrets/
+*.pem
+fcm-sa.json
+
+# Mobile Flutter app — permanently removed from this repo. Do not recreate /app here.
+# Flutter project (if needed) lives elsewhere (e.g. Desktop/financeiag-app). Must NOT match src/app.
+/app/
+/apk/
+
+# Python leftovers if any tooling runs at repo root
+__pycache__/
+*.py[cod]
+.venv/
