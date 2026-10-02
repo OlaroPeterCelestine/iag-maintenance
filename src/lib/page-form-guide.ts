@@ -68,7 +68,7 @@ const PAGE_MEANING: Record<string, string> = {
   qa:
     "Quality Assurance decides whether product can move. Incoming inspections check what arrived. In-process checks watch production. Release decisions and the hold-and-release log say if a batch may ship. Non-conformances and CAPA actions record defects and the fix.",
   production:
-    "Maintenance is the machinery workshop. Machines are the register. Work orders raise a job. Preventive schedules say when service is next due. Spare parts are what the job needs. Downtime records a stop, and job cards record the work that was done.",
+    "Maintenance is the machinery workshop. Machines are the register. Work orders raise a job, and job cards record the work done against it. PM templates describe a service; preventive schedules put one on a machine and raise its work order when it falls due. Downtime records a stop.",
   benchmark:
     "Work Systems (benchmark) measures how work is done. Define a work system and its KPIs, then run studies of cycle time and productivity. Gap analyses and improvement actions record what is off target and what will change.",
   pos:
@@ -356,11 +356,11 @@ const RECORD_PAGE_DESCRIPTION: Record<string, string> = {
   "qa|Hold & Release Log": "Batches currently held, and when each was released.",
 
   "production|Machines": "The machine register: what it is, where it sits, and whether it is running.",
-  "production|Work Orders": "A job raised against a machine: the fault, the parts, and who is doing it.",
-  "production|Preventive Schedules": "Recurring service, and when it is next due.",
-  "production|Spare Parts": "Parts kept for a machine, and how many are on hand.",
-  "production|Downtime": "Time a machine was stopped, and why.",
-  "production|Job Cards": "The work that was done: hours, parts, and the technician.",
+  "production|Work Orders": "A job raised against a machine: the fault, the priority, and who is doing it. Start and Complete are on the row menu.",
+  "production|Job Cards": "The work done against one work order: hours, parts, and the technician.",
+  "production|Preventive Schedules": "A PM template on one machine, and when it is next due. A work order is raised when it falls due.",
+  "production|PM Templates": "A service and its checklist, and how many days apart it is done.",
+  "production|Downtime": "Time a machine was stopped, and why. End downtime on the row menu closes it.",
 
   "benchmark|Work Systems": "A defined way of doing a job, and the standard it should hit.",
   "benchmark|Benchmark Studies": "A study that measures a work system against its standard.",

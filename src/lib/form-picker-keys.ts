@@ -196,9 +196,15 @@ const BY_ENTITY: Record<string, FormPickerRecordKey[]> = {
     { module: "projects", entity: "activities" },
     { module: "projects", entity: "contractors" },
   ],
-  "production-plans": [{ module: "production", entity: "work-centers" }],
-  "production-orders": [{ module: "production", entity: "work-centers" }],
-  "batch-records": [{ module: "production", entity: "work-centers" }],
+  "work-orders": [{ module: "production", entity: "work-centers" }],
+  "batch-records": [
+    { module: "production", entity: "work-centers" },
+    { module: "production", entity: "work-orders" },
+  ],
+  "pm-schedules": [
+    { module: "production", entity: "work-centers" },
+    { module: "production", entity: "pm-templates" },
+  ],
   "roast-batches": [{ module: "production", entity: "work-centers" }],
   "packaging-runs": [{ module: "production", entity: "work-centers" }],
   "downtime-logs": [{ module: "production", entity: "work-centers" }],

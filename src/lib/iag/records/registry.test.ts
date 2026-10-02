@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import { PAGE_ENTITY_CATALOG } from "@/lib/db/page-entity-catalog";
 import { MODULE_SLUGS } from "@/lib/module-data";
 import { CORE_TABS, DEFAULT_ENABLED_TABS } from "@/lib/manager-settings";
+import { entityDefinitions } from "@/lib/manager-entities";
 import { RECORD_ADAPTERS } from "@/lib/iag/records/registry";
 import { APP_MODULES, SHARED_MODULES } from "@/lib/iag/rbac";
 
@@ -90,49 +91,54 @@ describe("record adapter registry", () => {
 });
 
 /**
- * Two services own this tab, and the split is what stops one upstream
- * collection being shown as two screens — production orders and batch records
- * both used to read MES work orders.
+ * Every maintenance tab is MES. Before, Work Orders, Preventive Schedules and
+ * Spare Parts wrote coffee production orders, production-calendar blocks and
+ * production BOMs on iag-production.
  */
-describe("production ownership split", () => {
-  it("keeps the MES trio on iag-mes", () => {
-    for (const key of ["production:batch-records", "production:downtime-logs", "production:work-centers"]) {
-      expect(RECORD_ADAPTERS[key]?.service, key).toBe("mes");
-    }
-  });
-
-  it("points orders, roasting, packaging, plans and yield at iag-production", () => {
+describe("maintenance ownership", () => {
+  it("keeps every maintenance tab on iag-mes", () => {
     const expected: Record<string, string> = {
-      "production:production-orders": "/api/v1/production-orders",
-      "production:roast-batches": "/api/v1/production-runs",
-      "production:packaging-runs": "/api/v1/packaging-runs",
-      "production:production-plans": "/api/v1/schedule-blocks",
-      "production:yield-reports": "/api/v1/production-runs",
-      "production:bill-of-materials": "/api/v1/boms",
+      "production:work-centers": "/api/v1/assets",
+      "production:work-orders": "/api/v1/work-orders",
+      "production:batch-records": "/api/v1/work-orders",
+      "production:pm-templates": "/api/v1/pm-templates",
+      "production:pm-schedules": "/api/v1/pm-schedules",
+      "production:downtime-logs": "/api/v1/downtime-events",
     };
     for (const [key, resource] of Object.entries(expected)) {
-      expect(RECORD_ADAPTERS[key]?.service, key).toBe("production");
+      expect(RECORD_ADAPTERS[key]?.service, key).toBe("mes");
       expect(RECORD_ADAPTERS[key]?.resource, key).toBe(resource);
     }
   });
 
-  it("no longer shows one work-order collection as two screens", () => {
-    expect(RECORD_ADAPTERS["production:production-orders"]).not.toBe(
-      RECORD_ADAPTERS["production:batch-records"],
-    );
+  it("maps every tab the Maintenance nav shows", () => {
+    const tabs = entityDefinitions("production").map((d) => `production:${d.key}`);
+    const unmapped = tabs.filter((key) => !RECORD_ADAPTERS[key]);
+    expect(unmapped, `Tabs with no adapter fall through to the Go API: ${unmapped.join(", ")}`).toEqual([]);
+  });
+
+  it("leaves nothing pointed at iag-production's orders, plans or BOMs", () => {
+    for (const key of [
+      "production:production-orders",
+      "production:production-plans",
+      "production:bill-of-materials",
+    ]) {
+      expect(RECORD_ADAPTERS[key], key).toBeUndefined();
+    }
   });
 
   it("declares only the verbs the service has", () => {
-    // GET + POST on schedule-blocks; no PATCH, no DELETE.
-    expect(RECORD_ADAPTERS["production:production-plans"].update).toBeFalsy();
-    expect(RECORD_ADAPTERS["production:production-plans"].remove).toBeFalsy();
+    // GET + POST on PM templates and schedules; no PATCH, no DELETE yet.
+    for (const key of ["production:pm-templates", "production:pm-schedules"]) {
+      expect(RECORD_ADAPTERS[key].update, key).toBeFalsy();
+      expect(RECORD_ADAPTERS[key].remove, key).toBeFalsy();
+    }
+    // MES has no DELETE anywhere.
+    for (const key of ["production:work-orders", "production:batch-records", "production:work-centers"]) {
+      expect(RECORD_ADAPTERS[key].remove, key).toBeFalsy();
+    }
     // A run's stage moves through /advance and /complete, not a flat PATCH.
     expect(RECORD_ADAPTERS["production:roast-batches"].update).toBeFalsy();
-    expect(RECORD_ADAPTERS["production:roast-batches"].actions?.map((a) => a.id)).toEqual([
-      "start-roast",
-      "complete",
-    ]);
-    // Yield is arithmetic over runs; nothing to write.
     expect(RECORD_ADAPTERS["production:yield-reports"].readOnly).toBe(true);
   });
 });

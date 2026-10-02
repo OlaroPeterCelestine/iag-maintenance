@@ -535,15 +535,81 @@ function workCenterSelectOptions(typeFilter?: RegExp): {
     if (statusMatchesInactive(row)) continue;
     const type = (row.type || "").trim();
     if (typeFilter && type && !typeFilter.test(type)) continue;
-    const value = (row.name || row.code || "").trim();
+    // The asset tag, not the name: MES joins work orders, downtime and PM
+    // schedules to a machine on `asset_tag`, and a name stored there links to
+    // nothing.
+    const value = (row.code || row.name || "").trim();
     if (!value) continue;
+    const name = (row.name || "").trim();
     options.push({
       value,
-      label: value,
-      meta: [row.code, type, row.location].filter(Boolean).join(" · ") || undefined,
+      label: name && name !== value ? `${name} (${value})` : value,
+      meta: [type, row.section || row.location].filter(Boolean).join(" · ") || undefined,
     });
   }
   return options.sort((a, b) => a.label.localeCompare(b.label));
+}
+
+/**
+ * Pickers over another maintenance collection, keyed by form field.
+ *
+ * `workOrder` on a job card names an MES work order; `template` on a PM
+ * schedule names a PM template. Both were free text, so a typo created a job
+ * card against nothing or a schedule the service refused.
+ */
+const MAINTENANCE_RECORD_PICKERS: Record<
+  string,
+  {
+    /** The form this picker belongs to; the field key alone is too common. */
+    on: string;
+    entity: string;
+    placeholder: string;
+    empty: string;
+    option: (row: ManagerRecord) => { value: string; label: string; meta?: string } | null;
+  }
+> = {
+  workOrder: {
+    on: "batch-records",
+    entity: "work-orders",
+    placeholder: "Select work order…",
+    empty: "No open work orders — raise one under Work Orders first.",
+    option: (row) => {
+      if (/completed|cancelled/i.test(row.status || "")) return null;
+      const value = (row.reference || row.id || "").trim();
+      if (!value) return null;
+      return {
+        value,
+        label: `${value} — ${row.title || row.workCenter || ""}`.replace(/ — $/, ""),
+        meta: [row.workCenter, row.status].filter(Boolean).join(" · ") || undefined,
+      };
+    },
+  },
+  template: {
+    on: "pm-schedules",
+    entity: "pm-templates",
+    placeholder: "Select PM template…",
+    empty: "No PM templates yet — add one under PM Templates first.",
+    option: (row) => {
+      const value = (row.code || "").trim();
+      if (!value) return null;
+      return {
+        value,
+        label: `${value} — ${row.name || ""}`.replace(/ — $/, ""),
+        meta: row.intervalDays ? `every ${row.intervalDays} days` : undefined,
+      };
+    },
+  },
+};
+
+function maintenanceRecordOptions(fieldKey: string) {
+  const picker = MAINTENANCE_RECORD_PICKERS[fieldKey];
+  if (!picker) return [];
+  const out: { value: string; label: string; meta?: string; searchText: string }[] = [];
+  for (const row of loadRecords("production", picker.entity)) {
+    const opt = picker.option(row);
+    if (opt) out.push({ ...opt, searchText: `${opt.label} ${opt.meta || ""}` });
+  }
+  return out.sort((a, b) => b.value.localeCompare(a.value));
 }
 
 function statusMatchesInactive(row: ManagerRecord) {
@@ -2580,8 +2646,27 @@ function RecordViewModal({
 const SAVE_AS_DRAFT_FLAG = "_saveAsDraft";
 
 /** Forms where parking a separate draft (outside entity_records) makes sense. */
+/**
+ * MES collections save straight to the service and have no draft store — the
+ * legacy /api/drafts route 404s here. Offering "Save as draft" also put a
+ * "Draft" option at the top of every status select, selected by default; on a
+ * job card that moved the work order back to MES's `draft`.
+ */
+const MES_MAINTENANCE_ENTITIES = new Set([
+  "work-centers",
+  "work-orders",
+  "batch-records",
+  "pm-templates",
+  "pm-schedules",
+  "downtime-logs",
+]);
+
 function supportsSaveAsDraft(entityKey: string) {
-  return entityKey !== "reconciliations" && entityKey !== "chart-of-accounts";
+  return (
+    entityKey !== "reconciliations" &&
+    entityKey !== "chart-of-accounts" &&
+    !MES_MAINTENANCE_ENTITIES.has(entityKey)
+  );
 }
 
 function RecordFormModal({
@@ -2787,6 +2872,13 @@ function RecordFormModal({
   );
   const [roasterValue, setRoasterValue] = useState(() => state?.record?.roaster || "");
   const [lineValue, setLineValue] = useState(() => state?.record?.line || "");
+  const [maintenancePickers, setMaintenancePickers] = useState<Record<string, string>>(() => {
+    const out: Record<string, string> = {};
+    for (const [key, picker] of Object.entries(MAINTENANCE_RECORD_PICKERS)) {
+      if (picker.on === definition.key && state?.record?.[key]) out[key] = state.record[key];
+    }
+    return out;
+  });
   const [vehicleNameValue, setVehicleNameValue] = useState(
     () => state?.record?.name || "",
   );
@@ -3335,6 +3427,9 @@ function RecordFormModal({
     if (workCenterValue && !values.workCenter) values.workCenter = workCenterValue;
     if (roasterValue && !values.roaster) values.roaster = roasterValue;
     if (lineValue && !values.line) values.line = lineValue;
+    for (const [key, val] of Object.entries(maintenancePickers)) {
+      if (val && !values[key]) values[key] = val;
+    }
     if (definition.key === "vehicles") {
       if (vehicleNameValue && !values.name) values.name = vehicleNameValue;
       if (fixedAssetValue && !values.fixedAsset) values.fixedAsset = fixedAssetValue;
@@ -4852,6 +4947,46 @@ function RecordFormModal({
                   </div>
                 );
               }
+              if (MAINTENANCE_RECORD_PICKERS[field.key]?.on === definition.key) {
+                void staffListsTick;
+                const picker = MAINTENANCE_RECORD_PICKERS[field.key]!;
+                const current = maintenancePickers[field.key] || value;
+                const pickerOptions = maintenanceRecordOptions(field.key);
+                if (current && !pickerOptions.some((o) => o.value === current)) {
+                  pickerOptions.unshift({
+                    value: current,
+                    label: current,
+                    meta: "Current",
+                    searchText: current,
+                  });
+                }
+                // A job card belongs to its work order for good; MES has no
+                // way to move one, so the picker locks once the card exists.
+                const locked = readOnly || (state?.mode === "edit" && field.key === "workOrder");
+                return (
+                  <div key={field.key}>
+                    <Label htmlFor={field.key} className="mb-2 text-[12px] text-slate-700">
+                      {field.label}
+                      {field.required && <span className="text-orange-500">*</span>}
+                    </Label>
+                    <input type="hidden" name={field.key} value={current} />
+                    <SearchablePicker
+                      value={current}
+                      readOnly={locked}
+                      allowClear={!field.required}
+                      options={pickerOptions}
+                      placeholder={picker.placeholder}
+                      searchPlaceholder={picker.placeholder}
+                      emptyText={picker.empty}
+                      onChange={(next) => {
+                        setMaintenancePickers((prev) => ({ ...prev, [field.key]: next }));
+                        setStaffListsTick((n) => n + 1);
+                      }}
+                      className="w-full"
+                    />
+                  </div>
+                );
+              }
               if (
                 field.key === "workCenter" ||
                 field.key === "roaster" ||
@@ -4903,7 +5038,7 @@ function RecordFormModal({
                       options={pickerOptions}
                       placeholder="Select machine…"
                       searchPlaceholder="Search machines / work centers…"
-                      emptyText="No machines yet — add them under Production → Machines."
+                      emptyText="No machines yet — register them under Maintenance → Machines."
                       onChange={(next) => {
                         if (field.key === "roaster") setRoasterValue(next);
                         else if (field.key === "line") setLineValue(next);
@@ -4914,12 +5049,11 @@ function RecordFormModal({
                     />
                     {!effective.length ? (
                       <p className="mt-1 text-[11px] text-amber-600">
-                        No machines yet — add them under Production → Machines so production
-                        runs can pick the line that executes them.
+                        No machines yet — register them under Maintenance → Machines first.
                       </p>
                     ) : (
                       <p className="mt-1 text-[10px] text-slate-400">
-                        From Production → Machines. Prefer an Active machine for the run.
+                        From Maintenance → Machines. Saves the machine&apos;s asset code.
                       </p>
                     )}
                   </div>
@@ -6753,7 +6887,12 @@ function RecordFormModal({
                       defaultValue={
                         value ||
                         (field.key === "status"
-                          ? (REQUEST_EMAIL_ENTITIES.has(definition.key)
+                          ? // MES tabs list their statuses in the order to
+                            // default to — a work order is raised Open, not Draft.
+                            (MES_MAINTENANCE_ENTITIES.has(definition.key)
+                              ? field.options?.[0]
+                              : undefined) ||
+                            (REQUEST_EMAIL_ENTITIES.has(definition.key)
                               ? field.options?.find((o) => /^submitted$/i.test(o))
                               : undefined) ||
                             field.options?.find((o) => /^active$/i.test(o)) ||
