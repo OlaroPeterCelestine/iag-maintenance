@@ -522,6 +522,71 @@ function maintenanceFields(value: string): EntityField[] | null {
       { key: "notes", label: "Details and recovery", type: "textarea" },
     ];
   }
+  if (value === "spare parts" || value === "spare-parts") {
+    return [
+      text("name", "Part", true),
+      text("code", "Part code (SKU)", true),
+      text("partNumber", "Manufacturer part number"),
+      text("manufacturer", "Manufacturer"),
+      {
+        key: "fitsMachineTypes",
+        label: "Fits machine types",
+        placeholder: "Comma-separated, as on the machine register — e.g. Huller, Compressor",
+      },
+      text("fitsMachines", "Fits specific machines (asset codes)"),
+      text("unit", "Unit"),
+      number("reorderLevel", "Reorder level"),
+      number("maxQty", "Maximum stock"),
+      text("storeLocation", "Where it is kept"),
+      // wh_items.status CHECK; moved through the item status route.
+      select("status", "Status", ["Active", "Draft", "Restricted", "Obsolete", "Blocked"], true),
+      // Stock moves through warehouse receipts and issues, not this form.
+      { key: "onHand", label: "On hand", readOnly: true },
+      { key: "available", label: "Available", readOnly: true },
+      { key: "notes", label: "Notes", type: "textarea" },
+    ];
+  }
+  if (value === "reliability") {
+    return [
+      { key: "workCenter", label: "Machine", readOnly: true },
+      { key: "mtbfHours", label: "MTBF (hours)", readOnly: true },
+      { key: "mttrHours", label: "MTTR (hours)", readOnly: true },
+      { key: "availability", label: "Availability %", readOnly: true },
+      { key: "failures", label: "Failures", readOnly: true },
+      { key: "status", label: "Rating", readOnly: true },
+      { key: "since", label: "Since", readOnly: true },
+    ];
+  }
+  if (value === "alerts") {
+    return [
+      { key: "date", label: "Raised", readOnly: true },
+      { key: "severity", label: "Severity", readOnly: true },
+      { key: "workCenter", label: "Machine / source", readOnly: true },
+      { key: "message", label: "Alert", type: "textarea", readOnly: true },
+      { key: "status", label: "Status", readOnly: true },
+      { key: "acknowledgedOn", label: "Acknowledged", readOnly: true },
+      { key: "resolvedOn", label: "Resolved", readOnly: true },
+    ];
+  }
+  if (value === "recommendations") {
+    return [
+      { key: "date", label: "Suggested", readOnly: true },
+      { key: "title", label: "Recommendation", readOnly: true },
+      { key: "workCenter", label: "Machine", readOnly: true },
+      { key: "kind", label: "Kind", readOnly: true },
+      { key: "confidence", label: "Confidence %", readOnly: true },
+      { key: "body", label: "Detail", type: "textarea", readOnly: true },
+      { key: "status", label: "Status", readOnly: true },
+    ];
+  }
+  if (value === "technicians") {
+    return [
+      { key: "name", label: "Technician", readOnly: true },
+      { key: "role", label: "Role", readOnly: true },
+      { key: "plant", label: "Plant", readOnly: true },
+      { key: "status", label: "Status", readOnly: true },
+    ];
+  }
   return null;
 }
 
@@ -533,6 +598,10 @@ const MAINTENANCE_COLUMNS: Record<string, string[]> = {
   "pm-templates": ["code", "name", "assetCategory", "intervalDays"],
   "pm-schedules": ["template", "workCenter", "nextDue", "lastDone", "status"],
   "downtime-logs": ["date", "startTime", "workCenter", "reason", "minutes", "status"],
+  "spare-parts": ["name", "code", "fitsMachineTypes", "onHand", "reorderLevel", "status"],
+  reliability: ["workCenter", "mtbfHours", "mttrHours", "availability", "failures", "status"],
+  alerts: ["date", "severity", "workCenter", "message", "status"],
+  recommendations: ["date", "title", "workCenter", "confidence", "status"],
 };
 
 function fieldsFor(label: string): EntityField[] {

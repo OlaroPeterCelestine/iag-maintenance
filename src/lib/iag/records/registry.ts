@@ -5,16 +5,18 @@
  * mapping and why each tab sits where it does:
  *
  *   work-centers (Machines), work-orders, batch-records (Job Cards),
- *   pm-templates, pm-schedules, downtime-logs
+ *   pm-templates, pm-schedules, downtime-logs, reliability, alerts,
+ *   recommendations, technicians (picker only)
  *
  * The iag-production adapters below (roasting, packaging, yield) came over with
  * the Production app this one was cloned from. No maintenance tab shows them;
  * they stay mapped so a stray link reads the right service rather than falling
  * through to the Go API.
  *
- * Spare Parts is deliberately unmapped and has no tab. No service owns a parts
- * register yet, and the tab used to write iag-production BOMs — the same table
- * as production recipes and the Inventory app's kits.
+ * Spare Parts, the technician picker and the read-only reliability, alerts
+ * and recommendations screens are in `maintenance-extras.ts`. Spare parts are
+ * warehouse items (`material_class = spare_part`); they used to be written as
+ * iag-production BOMs, the table production recipes share.
  */
 import type { ServiceKey } from "@/lib/iag/config";
 import { gatewayFetch, unwrapList, unwrapOne } from "@/lib/iag/gateway";
@@ -31,6 +33,13 @@ import {
   titleCase,
   workOrders,
 } from "@/lib/iag/records/mes-maintenance";
+import {
+  alerts,
+  recommendations,
+  reliability,
+  spareParts,
+  technicians,
+} from "@/lib/iag/records/maintenance-extras";
 import {
   attachmentRefs,
   attachmentsJson,
@@ -415,6 +424,13 @@ export const RECORD_ADAPTERS: Record<string, RecordAdapter> = {
   "production:pm-templates": pmTemplates,
   "production:pm-schedules": pmSchedules,
   "production:downtime-logs": downtimeEvents,
+  "production:reliability": reliability,
+  "production:alerts": alerts,
+  "production:recommendations": recommendations,
+  // Picker only, no tab: who a work order can be assigned to.
+  "production:technicians": technicians,
+  // warehouse — spare parts are warehouse items (material_class spare_part)
+  "production:spare-parts": spareParts,
   // iag-production — carried over from the Production app, no tab here
   "production:roast-batches": roastBatches,
   "production:packaging-runs": packagingRuns,

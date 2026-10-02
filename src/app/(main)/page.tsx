@@ -79,6 +79,15 @@ export default function MaintenanceDashboardPage() {
       return [];
     }
   }, [tick, hydrated]);
+  const parts = useMemo(() => {
+    if (!hydrated) return [];
+    void tick;
+    try {
+      return loadRecords("production", "spare-parts");
+    } catch {
+      return [];
+    }
+  }, [tick, hydrated]);
   const downtime = useMemo(() => {
     if (!hydrated) return [];
     void tick;
@@ -93,6 +102,10 @@ export default function MaintenanceDashboardPage() {
   const stopped = machines.filter((row) => /down|maintenance/i.test(String(row.status || "")));
   const openDowntime = downtime.filter(isOpen);
   const overduePm = schedules.filter((row) => /overdue/i.test(String(row.status || "")));
+  const lowParts = parts.filter((row) => {
+    const reorder = Number(row.reorderLevel);
+    return reorder > 0 && row.onHand !== "" && Number(row.onHand) < reorder;
+  });
   const recent = [...orders]
     .sort((a, b) => String(b.date || b.updatedAt || "").localeCompare(String(a.date || a.updatedAt || "")))
     .slice(0, 8);
@@ -121,7 +134,7 @@ export default function MaintenanceDashboardPage() {
       </header>
 
       <div className="min-h-0 flex-1 overflow-auto p-4">
-        <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <Link
             href="/production?view=work-orders"
             className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:border-sky-300 dark:border-slate-800 dark:bg-slate-950"
@@ -150,6 +163,13 @@ export default function MaintenanceDashboardPage() {
             <p className="text-[11px] uppercase tracking-wide text-slate-500">Overdue PM</p>
             <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-50">{overduePm.length}</p>
           </Link>
+          <Link
+            href="/production?view=spare-parts"
+            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:border-sky-300 dark:border-slate-800 dark:bg-slate-950"
+          >
+            <p className="text-[11px] uppercase tracking-wide text-slate-500">Parts below reorder</p>
+            <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-50">{lowParts.length}</p>
+          </Link>
         </div>
 
         <div className="mb-4 flex flex-wrap gap-2">
@@ -159,7 +179,10 @@ export default function MaintenanceDashboardPage() {
             { href: "/production?view=batch-records", label: "Job cards" },
             { href: "/production?view=pm-schedules", label: "Schedules" },
             { href: "/production?view=pm-templates", label: "PM templates" },
+            { href: "/production?view=spare-parts", label: "Spare parts" },
             { href: "/production?view=downtime-logs", label: "Downtime" },
+            { href: "/production?view=reliability", label: "Reliability" },
+            { href: "/production?view=alerts", label: "Alerts" },
           ].map((item) => (
             <Link
               key={item.href}
