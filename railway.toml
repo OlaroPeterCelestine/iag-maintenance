@@ -1,0 +1,13 @@
+# Railway — Next.js web service (finace trial)
+# Region: europe-west4-drams3a (Netherlands). Keep Vercel functions in fra1.
+# Plan: Hobby. Custom server.ts owns long-lived SSE/WS (no 15s serverless cap).
+[build]
+builder = "NIXPACKS"
+buildCommand = "npx next build"
+
+[deploy]
+startCommand = "NODE_ENV=production npx tsx server.ts"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5

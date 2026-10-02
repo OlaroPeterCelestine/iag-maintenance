@@ -1,0 +1,372 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+
+  &::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+}
+
+/* Sweep highlight used by Skeleton while lists pull from Postgres. */
+@keyframes shimmer-sweep {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@utility animate-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    rgb(241 245 249) 0%,
+    rgb(226 232 240) 40%,
+    rgb(248 250 252) 50%,
+    rgb(226 232 240) 60%,
+    rgb(241 245 249) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer-sweep 1.35s ease-in-out infinite;
+}
+
+.dark .animate-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    rgb(23 23 23) 0%,
+    rgb(38 38 38) 40%,
+    rgb(55 55 55) 50%,
+    rgb(38 38 38) 60%,
+    rgb(23 23 23) 100%
+  );
+}
+
+@theme inline {
+  --font-heading: var(--font-sans);
+  --font-sans: var(--font-geist-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+  --color-kravio: #1e293b;
+  --color-success: #16a34a;
+  --color-danger: #ef4444;
+}
+
+:root {
+  --background: oklch(0.985 0.002 247);
+  --foreground: oklch(0.22 0.02 255);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.22 0.02 255);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.22 0.02 255);
+  --primary: oklch(0.28 0.035 255);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.96 0.005 255);
+  --secondary-foreground: oklch(0.28 0.02 255);
+  --muted: oklch(0.96 0.005 255);
+  --muted-foreground: oklch(0.52 0.015 255);
+  --accent: oklch(0.96 0.005 255);
+  --accent-foreground: oklch(0.28 0.02 255);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.9 0.005 255);
+  --input: oklch(0.9 0.005 255);
+  --ring: oklch(0.65 0.03 255);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.975 0.003 255);
+  --sidebar-foreground: oklch(0.35 0.02 255);
+  --sidebar-primary: oklch(0.45 0.12 255);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(1 0 0);
+  --sidebar-accent-foreground: oklch(0.25 0.02 255);
+  --sidebar-border: oklch(0.9 0.005 255);
+  --sidebar-ring: oklch(0.65 0.03 255);
+}
+
+.dark {
+  --background: #000000;
+  --foreground: #f5f5f5;
+  --card: #0a0a0a;
+  --card-foreground: #f5f5f5;
+  --popover: #0a0a0a;
+  --popover-foreground: #f5f5f5;
+  --primary: #f5f5f5;
+  --primary-foreground: #000000;
+  --secondary: #141414;
+  --secondary-foreground: #f5f5f5;
+  --muted: #141414;
+  --muted-foreground: #a3a3a3;
+  --accent: #141414;
+  --accent-foreground: #f5f5f5;
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.12);
+  --ring: #525252;
+  --sidebar: #000000;
+  --sidebar-foreground: #f5f5f5;
+  --sidebar-primary: #f5f5f5;
+  --sidebar-primary-foreground: #000000;
+  --sidebar-accent: #141414;
+  --sidebar-accent-foreground: #f5f5f5;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-ring: #525252;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  *::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+  html {
+    @apply font-sans h-full overflow-hidden;
+  }
+  body {
+    @apply bg-background text-foreground antialiased h-full overflow-hidden;
+  }
+}
+
+/*
+ * Dark-mode retrofit.
+ * Most screens use hardcoded slate/white utilities rather than semantic tokens,
+ * so we remap the common ones under `.dark`. `.dark .bg-white` (0,2,0) beats
+ * `.bg-white` (0,1,0), so these overrides win without !important.
+ */
+.dark {
+  --dk-page: #000000;
+  --dk-surface: #0a0a0a;
+  --dk-raised: #111111;
+  --dk-raised-2: #171717;
+  --dk-elevated: #1f1f1f;
+  --dk-elevated-hover: #2a2a2a;
+
+  --dk-t-900: #fafafa;
+  --dk-t-800: #f0f0f0;
+  --dk-t-700: #e0e0e0;
+  --dk-t-600: #c4c4c4;
+  --dk-t-500: #a3a3a3;
+  --dk-t-400: #8a8a8a;
+  --dk-t-300: #737373;
+
+  --dk-b-50: rgba(255, 255, 255, 0.05);
+  --dk-b-100: rgba(255, 255, 255, 0.08);
+  --dk-b-200: rgba(255, 255, 255, 0.12);
+  --dk-b-300: rgba(255, 255, 255, 0.16);
+}
+
+/* Surfaces */
+.dark .bg-white,
+.dark .hover\:bg-white:hover {
+  background-color: var(--dk-surface);
+}
+.dark .bg-\[\#fbfbfc\] {
+  background-color: var(--dk-page);
+}
+.dark .bg-\[\#f7f8f9\] {
+  background-color: var(--dk-surface);
+}
+.dark .bg-slate-50,
+.dark .bg-slate-50\/80,
+.dark .bg-slate-50\/90,
+.dark .bg-slate-50\/70,
+.dark .bg-slate-50\/60,
+.dark .hover\:bg-slate-50:hover,
+.dark .hover\:bg-slate-50\/80:hover,
+.dark .hover\:bg-slate-50\/70:hover,
+.dark .hover\:bg-slate-50\/40:hover {
+  background-color: var(--dk-raised);
+}
+.dark .bg-slate-100,
+.dark .hover\:bg-slate-100:hover {
+  background-color: var(--dk-raised-2);
+}
+.dark .bg-white\/5,
+.dark .bg-black\/10,
+.dark .hover\:bg-black\/10:hover,
+.dark .bg-slate-900\/30 {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Dark accent buttons/badges — keep visible on a dark canvas */
+.dark .bg-black,
+.dark .bg-slate-900,
+.dark .hover\:bg-slate-900:hover {
+  background-color: var(--dk-elevated);
+}
+.dark .bg-slate-800,
+.dark .hover\:bg-slate-800:hover,
+.dark .hover\:bg-zinc-800:hover {
+  background-color: var(--dk-elevated-hover);
+}
+.dark .bg-slate-700 {
+  background-color: #262626;
+}
+
+/* Text */
+.dark .text-slate-900,
+.dark .hover\:text-slate-900:hover {
+  color: var(--dk-t-900);
+}
+.dark .text-slate-800,
+.dark .hover\:text-slate-800:hover {
+  color: var(--dk-t-800);
+}
+.dark .text-slate-700,
+.dark .hover\:text-slate-700:hover {
+  color: var(--dk-t-700);
+}
+.dark .text-slate-600,
+.dark .hover\:text-slate-600:hover {
+  color: var(--dk-t-600);
+}
+.dark .text-slate-500 {
+  color: var(--dk-t-500);
+}
+.dark .text-slate-400 {
+  color: var(--dk-t-400);
+}
+.dark .text-slate-300,
+.dark .text-slate-200 {
+  color: var(--dk-t-300);
+}
+
+/* Borders */
+.dark .border-slate-50,
+.dark .divide-slate-100 > * {
+  border-color: var(--dk-b-50);
+}
+.dark .border-slate-100 {
+  border-color: var(--dk-b-100);
+}
+.dark .border-slate-200,
+.dark .border-slate-200\/80,
+.dark .border-slate-200\/90 {
+  border-color: var(--dk-b-200);
+}
+.dark .border-slate-300,
+.dark .border-slate-400 {
+  border-color: var(--dk-b-300);
+}
+
+/* Rings */
+.dark .ring-slate-200,
+.dark .ring-slate-200\/80,
+.dark .ring-slate-300 {
+  --tw-ring-color: var(--dk-b-200);
+}
+.dark .ring-slate-900\/10,
+.dark .ring-black\/5 {
+  --tw-ring-color: rgba(255, 255, 255, 0.08);
+}
+
+/*
+ * Printing. The shell locks html/body scrolling, so printing needs those reset
+ * plus a way to isolate one report: mark the container `data-print-area` and
+ * any on-screen-only controls inside it `data-print-hide`.
+ */
+@media print {
+  html,
+  body {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  body:has([data-print-area]) * {
+    visibility: hidden;
+  }
+
+  [data-print-area],
+  [data-print-area] * {
+    visibility: visible;
+  }
+
+  [data-print-area] {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    max-height: none !important;
+    overflow: visible !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  [data-print-hide] {
+    display: none !important;
+  }
+
+  table {
+    page-break-inside: auto;
+  }
+  tr {
+    page-break-inside: avoid;
+  }
+}
+
+/* Next.js N badge, error overlay, and Vercel toolbar — not for operators. */
+nextjs-portal,
+#nextjs-portal,
+[data-nextjs-toast],
+[data-nextjs-dialog],
+[data-nextjs-dialog-overlay],
+vercel-live-feedback,
+#vercel-live-feedback,
+#vercel-toolbar,
+[data-vercel-toolbar] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}

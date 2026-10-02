@@ -1,0 +1,10 @@
+# Never upload local secrets or binaries to Vercel builds
+.env
+.env.*
+!.env.example
+backend/
+ml-service/
+# Root Flutter leftover only — leading / so src/app (Next.js) is uploaded
+/app/
+apk/
+.node_modules
