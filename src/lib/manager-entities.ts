@@ -197,15 +197,17 @@ export function entityKey(label: string) {
   if (lower === "machines" || lower === "machine") {
     return "work-centers";
   }
-  // Machinery maintenance tabs keep the production storage keys the API already knows.
+  // Maintenance tabs. Work orders, PM templates and PM schedules are MES
+  // collections with their own keys; Job Cards keep the batch-records key and
+  // are the work-done record of an MES work order.
   if (lower === "work orders" || lower === "work-orders") {
-    return "production-orders";
+    return "work-orders";
   }
   if (lower === "preventive schedules" || lower === "preventive-schedules") {
-    return "production-plans";
+    return "pm-schedules";
   }
-  if (lower === "spare parts" || lower === "spare-parts") {
-    return "bill-of-materials";
+  if (lower === "pm templates" || lower === "pm-templates") {
+    return "pm-templates";
   }
   if (lower === "downtime" || lower === "downtime-logs") {
     return "downtime-logs";
@@ -389,8 +391,154 @@ const fixedAssetFields: EntityField[] = [
   select("status", "Status", ["Active", "Draft", "Inactive"], true),
 ];
 
+/**
+ * The maintenance tabs, all on iag-mes (see src/lib/iag/records/mes-maintenance.ts).
+ *
+ * Every select here is the vocabulary the MES column accepts, folded by the
+ * adapter. `workCenter` is always the machine's asset tag — the picker writes
+ * the tag, because MES joins work orders, downtime and PM schedules on it.
+ */
+function maintenanceFields(value: string): EntityField[] | null {
+  if (value === "machines" || value === "machine") {
+    return [
+      text("name", "Machine", true),
+      text("code", "Asset code", true),
+      select(
+        "type",
+        "Type",
+        ["Crusher", "Mill", "Generator", "Pump", "Conveyor", "Compressor", "Packaging line", "Other"],
+        true,
+      ),
+      {
+        key: "section",
+        label: "Plant section (code)",
+        placeholder: "The MES section code — set when the machine is registered",
+      },
+      text("location", "Site / location"),
+      // mes_assets.criticality CHECK (A–D). Set on registration only.
+      select("criticality", "Criticality", ["A — critical", "B — high", "C — medium", "D — low"]),
+      // mes_assets.status CHECK. "Retired" takes a machine out of the pickers.
+      select("status", "Status", ["Idle", "Running", "Down", "PM", "Maintenance", "Retired"], true),
+      number("capacityPerHour", "Rated output per hour"),
+      date("purchasedOn", "Purchased on"),
+      text("supervisor", "Responsible technician"),
+      { key: "notes", label: "Notes", type: "textarea" },
+    ];
+  }
+  if (value === "work orders" || value === "work-orders") {
+    return [
+      // Not `reference`: a form with a reference field gets a client-side
+      // number at submit (DOC-0001), which would override MES's own WO-n.
+      { key: "num", label: "Work order", readOnly: true, placeholder: "MES numbers it on save." },
+      {
+        key: "title",
+        label: "Title",
+        required: true,
+        placeholder: "What is wrong, e.g. Huller bearing running hot.",
+      },
+      text("workCenter", "Machine", true),
+      select("woType", "Type", ["Breakdown", "Corrective", "Preventive", "Inspection", "Overhaul"], true),
+      // mes_work_orders.priority CHECK.
+      select("priority", "Priority", ["Medium", "High", "Critical", "Low"], true),
+      date("dueDate", "Due"),
+      text("assignee", "Assigned technician"),
+      // mes_work_orders.status CHECK. Completed goes through POST /complete,
+      // which stamps completed_at and advances the PM schedule behind it.
+      select("status", "Status", ["Open", "Draft", "Scheduled", "In Progress", "Completed", "Cancelled"], true),
+      number("estimatedHours", "Estimated hours"),
+      text("partsRequired", "Parts required"),
+      number("estimatedCost", "Estimated cost"),
+      { key: "pmTemplate", label: "From PM template", readOnly: true },
+      { key: "checklist", label: "Checklist", type: "textarea", readOnly: true },
+      { key: "description", label: "Fault and the work required", type: "textarea" },
+      { key: "attachments", label: "Photos and manuals", type: "attachments" },
+    ];
+  }
+  if (value === "job cards" || value === "job-cards") {
+    return [
+      text("workOrder", "Work order", true),
+      date("date", "Work date", true),
+      { key: "workCenter", label: "Machine", readOnly: true },
+      text("technician", "Technician", true),
+      number("hours", "Hours booked", true),
+      number("meterReading", "Meter / hour-meter reading"),
+      text("partsUsed", "Parts used"),
+      number("completion", "Completion %"),
+      // Moves the work order. Completed runs POST /complete on it.
+      select("status", "Work order status", ["In Progress", "Completed", "Open"], true),
+      { key: "workDone", label: "Work done", type: "textarea" },
+      { key: "attachments", label: "Photos and signed job card", type: "attachments" },
+    ];
+  }
+  if (value === "pm templates" || value === "pm-templates") {
+    return [
+      text("code", "Template code", true),
+      text("name", "Service", true),
+      text("assetCategory", "Machine type"),
+      number("intervalDays", "Every (days)", true),
+      {
+        key: "checklist",
+        label: "Checklist — one step per line",
+        type: "textarea",
+      },
+      { key: "notes", label: "Notes", type: "textarea" },
+    ];
+  }
+  if (value === "preventive schedules" || value === "preventive-schedules") {
+    return [
+      text("template", "PM template", true),
+      text("workCenter", "Machine", true),
+      date("nextDue", "First due"),
+      { key: "templateName", label: "Service", readOnly: true },
+      { key: "intervalDays", label: "Every (days)", readOnly: true },
+      { key: "lastDone", label: "Last done", readOnly: true },
+      { key: "status", label: "Status", readOnly: true },
+    ];
+  }
+  if (value === "downtime" || value === "downtime-logs") {
+    return [
+      date("date", "Date", true),
+      { key: "startTime", label: "Start time (HH:MM)", required: true, placeholder: "08:30" },
+      text("workCenter", "Machine", true),
+      text("reason", "Fault", true),
+      select(
+        "category",
+        "Category",
+        ["Breakdown", "Changeover", "No material", "No labour", "Quality stop", "Other"],
+        true,
+      ),
+      text("reportedBy", "Reported by", true),
+      number("kgLost", "Output lost (kg)"),
+      // Only for a stop that is already over: sent as `ended_at`
+      // (iag-mes#3). Leave blank for a machine still down, and close it with
+      // End downtime on the row menu.
+      {
+        key: "minutes",
+        label: "Minutes lost (if already over)",
+        type: "number",
+        placeholder: "Blank while the machine is still down",
+      },
+      { key: "status", label: "Status", readOnly: true },
+      { key: "notes", label: "Details and recovery", type: "textarea" },
+    ];
+  }
+  return null;
+}
+
+/** List columns for the maintenance tabs. */
+const MAINTENANCE_COLUMNS: Record<string, string[]> = {
+  "work-centers": ["name", "code", "type", "section", "criticality", "status"],
+  "work-orders": ["num", "title", "workCenter", "priority", "dueDate", "status"],
+  "batch-records": ["workOrder", "date", "workCenter", "technician", "hours", "status"],
+  "pm-templates": ["code", "name", "assetCategory", "intervalDays"],
+  "pm-schedules": ["template", "workCenter", "nextDue", "lastDone", "status"],
+  "downtime-logs": ["date", "startTime", "workCenter", "reason", "minutes", "status"],
+};
+
 function fieldsFor(label: string): EntityField[] {
   const value = label.toLowerCase();
+  const maintenance = maintenanceFields(value);
+  if (maintenance) return maintenance;
   if (value === "customers") return partyFields("Customer");
   if (value === "suppliers") return supplierFields();
   if (value === "departments") {
@@ -1092,9 +1240,7 @@ function fieldsFor(label: string): EntityField[] {
     ];
   }
   if (
-    value.includes("production plan") ||
-    value === "preventive schedules" ||
-    value === "preventive-schedules"
+    value.includes("production plan")
   ) {
     return [
       text("reference", "Schedule", true),
@@ -1115,9 +1261,7 @@ function fieldsFor(label: string): EntityField[] {
   }
   if (
     value.includes("work center") ||
-    value === "work-centers" ||
-    value === "machines" ||
-    value === "machine"
+    value === "work-centers"
   ) {
     return [
       text("name", "Machine", true),
@@ -1140,9 +1284,7 @@ function fieldsFor(label: string): EntityField[] {
   if (
     value.includes("bill of materials") ||
     value === "boms" ||
-    value === "bom" ||
-    value === "spare parts" ||
-    value === "spare-parts"
+    value === "bom"
   ) {
     return [
       text("name", "Part or kit", true),
@@ -1157,7 +1299,7 @@ function fieldsFor(label: string): EntityField[] {
       { key: "attachments", label: "Part sheets", type: "attachments" },
     ];
   }
-  if (value.includes("batch record") || value === "job cards" || value === "job-cards") {
+  if (value.includes("batch record")) {
     return [
       text("reference", "Job card", true),
       date("date", "Work date", true),
@@ -1182,7 +1324,7 @@ function fieldsFor(label: string): EntityField[] {
       { key: "attachments", label: "Photos and signed job card", type: "attachments" },
     ];
   }
-  if (value.includes("downtime log") || value === "downtime" || value === "downtime-logs") {
+  if (value.includes("downtime log")) {
     return [
       text("reference", "Downtime reference", true),
       date("date", "Date", true),
@@ -1358,9 +1500,7 @@ function fieldsFor(label: string): EntityField[] {
   }
   if (
     value === "production orders" ||
-    value === "production-orders" ||
-    value === "work orders" ||
-    value === "work-orders"
+    value === "production-orders"
   ) {
     return [
       text("reference", "Work order", true),
@@ -3671,7 +3811,8 @@ export function entityDefinitions(module: ModuleSlug): EntityDefinition[] {
     const fields = fieldsFor(label);
     const key = entityKey(label);
     const columns =
-      key === "chart-of-accounts"
+      MAINTENANCE_COLUMNS[key] ??
+      (key === "chart-of-accounts"
         ? ["kind", "name", "code", "type", "group", "currency", "balance", "status"]
         : key === "bank-and-cash-accounts"
           ? [
@@ -4125,7 +4266,7 @@ export function entityDefinitions(module: ModuleSlug): EntityDefinition[] {
                   : fields
                   .filter((field) => !["textarea"].includes(field.type ?? ""))
                   .slice(0, 6)
-                  .map((field) => field.key);
+                  .map((field) => field.key));
     return {
       key,
       label,

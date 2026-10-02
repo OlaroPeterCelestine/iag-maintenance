@@ -1,6 +1,6 @@
 # IAG Maintenance
 
-Machinery maintenance: the machine register, work orders, preventive schedules, spare parts, downtime, and job cards. Same shell as the other IAG web apps.
+Machinery maintenance: the machine register, work orders, job cards, preventive schedules, PM templates, and downtime. Same shell as the other IAG web apps.
 
 **Dev port:** `3140`
 
@@ -18,6 +18,8 @@ Open `http://127.0.0.1:3140`. Sign in with a platform account. The sidebar opens
 
 ## What this app is
 
-A workshop desk for plant and machinery. Machines are the register. Work orders raise a job. Preventive schedules say when service is next due. Spare parts list what a machine needs. Downtime records a stop. Job cards record the work that was done.
+A workshop desk for plant and machinery. Machines are the register. Work orders raise a job, and job cards record the work done against it. PM templates describe a service; preventive schedules put one on a machine, and MES raises a work order when it falls due. Downtime records a stop.
 
-Records use the same storage keys as Production (`work-centers`, `production-orders`, `production-plans`, `bill-of-materials`, `downtime-logs`, `batch-records`) so they save through the existing API.
+Every tab saves to iag-mes through the gateway — see [docs/IAG_PLATFORM_GAP.md](docs/IAG_PLATFORM_GAP.md) for the mapping and what is not wired yet. Set `NEXT_PUBLIC_FRONTEND_ONLY=false` (at build time) and `IAG_GATEWAY_ORIGIN`; without the first, the app keeps everything in the browser and never reaches MES.
+
+There is no Spare Parts tab yet: no service owns a parts register.

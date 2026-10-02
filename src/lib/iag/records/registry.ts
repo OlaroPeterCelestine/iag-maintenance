@@ -1,38 +1,36 @@
 /**
- * module/entity → IAG service mapping for the Production app.
+ * module/entity → IAG service mapping for the Maintenance app.
  *
- * Two services own this tab:
+ * The maintenance tabs are all iag-mes; see `mes-maintenance.ts` for the
+ * mapping and why each tab sits where it does:
  *
- *   iag-mes (`/api/v1/mes` + service `/api/v1`)
- *     GET/POST /work-orders, PATCH /work-orders/:num      → batch-records
- *     GET/POST /downtime-events, POST /:id/end            → downtime-logs
- *     GET/POST /assets, PATCH /assets/:tag                → work-centers
+ *   work-centers (Machines), work-orders, batch-records (Job Cards),
+ *   pm-templates, pm-schedules, downtime-logs
  *
- *   iag-production (`/api/v1/production` + service `/api/v1`)
- *     GET/POST /production-orders                         → production-orders
- *     GET/POST /production-runs, /:id/advance, /:id/complete → roast-batches
- *     GET/POST/PATCH /packaging-runs/:businessId          → packaging-runs
- *     GET/POST /schedule-blocks                           → production-plans
- *     GET /production-runs (derived, read-only)           → yield-reports
+ * The iag-production adapters below (roasting, packaging, yield) came over with
+ * the Production app this one was cloned from. No maintenance tab shows them;
+ * they stay mapped so a stray link reads the right service rather than falling
+ * through to the Go API.
  *
- * The iag-production adapters are the ones iag-inventory ships for the same
- * screens (its Inventory tab renders roasting and packaging too), ported here
- * so the two apps read and write the same rows. Before this, production
- * orders and batch records both pointed at MES work orders — one upstream
- * collection shown as two screens — and roasting, packaging, plans and yield
- * fell through to the Go API.
- *
- * Both services are snake_case. Bill of materials reads iag-production's
- * `/boms` (migration 007), the same table the Inventory app's kits use.
+ * Spare Parts is deliberately unmapped and has no tab. No service owns a parts
+ * register yet, and the tab used to write iag-production BOMs — the same table
+ * as production recipes and the Inventory app's kits.
  */
 import type { ServiceKey } from "@/lib/iag/config";
 import { gatewayFetch, unwrapList, unwrapOne } from "@/lib/iag/gateway";
 import { resourceAdapter } from "@/lib/iag/records/resource";
 import {
-  parseComponents,
-  serialiseComponents,
-  type BomLineInput,
-} from "@/lib/iag/records/bom-lines";
+  assets,
+  attrs,
+  attrsOrOmit,
+  downtimeEvents,
+  jobCards,
+  pmSchedules,
+  pmTemplates,
+  snakeCase,
+  titleCase,
+  workOrders,
+} from "@/lib/iag/records/mes-maintenance";
 import {
   attachmentRefs,
   attachmentsJson,
@@ -63,322 +61,6 @@ type Row = Record<string, unknown>;
  * screens widen without a frontend deploy.
  */
 const LIST_LIMIT = 200;
-
-/**
- * Window asked of the schedule, in days either side of today.
- *
- * `ListScheduleBlocks` defaults to `now-1d … now+14d`. A production plan is
- * booked by the week and routinely sits further out than a fortnight, so the
- * default silently hid rows that had saved perfectly well.
- */
-const SCHEDULE_WINDOW_DAYS = 180;
-
-function scheduleWindow(): Record<string, string> {
-  const day = 24 * 60 * 60 * 1000;
-  const now = Date.now();
-  return {
-    from: new Date(now - SCHEDULE_WINDOW_DAYS * day).toISOString(),
-    to: new Date(now + SCHEDULE_WINDOW_DAYS * day).toISOString(),
-  };
-}
-
-function attrs(row: Row): Row {
-  const bag = row.attrs;
-  return bag && typeof bag === "object" && !Array.isArray(bag) ? (bag as Row) : {};
-}
-
-/**
- * An `attrs` bag to send, or `undefined` when there is nothing in it to send.
- *
- * This exists because of how the app updates a record. `updateRecordAsync`
- * sends only the fields the form changed, and every service here replaces the
- * whole bag when one arrives (`if in.Attrs != nil { cur.Attrs = in.Attrs }`).
- * An adapter that built `attrs` unconditionally therefore sent
- * `{attachments: []}` on a status-only edit and cleared the record's stored
- * paperwork — on packaging runs, which is where a recall starts.
- *
- * Returning `undefined` makes `omitEmpty` drop the key, so an edit that says
- * nothing about attachments leaves the stored ones alone. Same contract as
- * `attachmentRefs`, which has always worked this way for the same reason.
- */
-function attrsOrOmit(bag: Record<string, unknown>): Record<string, unknown> | undefined {
-  const out: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(bag)) {
-    if (value === undefined || value === null || value === "") continue;
-    if (Array.isArray(value) && value.length === 0) continue;
-    out[key] = value;
-  }
-  return Object.keys(out).length ? out : undefined;
-}
-
-const workOrders = resourceAdapter({
-  service: "mes",
-  path: "/api/v1/work-orders",
-  listQuery: { limit: LIST_LIMIT },
-  idField: "num",
-  noDelete: true,
-  itemPath: (id) => `/api/v1/work-orders/${encodeURIComponent(id)}`,
-  toRecord: (row: Row) => {
-    const extra = attrs(row);
-    return {
-      id: str(pick(row, "num")),
-      reference: str(pick(row, "num")),
-      date: isoDate(pick(row, "created_at", "due_at")),
-      finishedItem: str(pick(row, "title")),
-      recipe: str(extra.recipe),
-      workCenter: str(pick(row, "asset_tag")),
-      quantity: str(extra.quantity),
-      unit: str(extra.unit),
-      materials: str(extra.materials),
-      location: str(pick(row, "asset_tag")),
-      // The batch-record form collects a production run's actual figures, and
-      // a CMMS work order has no column for any of them. They ride in `attrs`,
-      // which the service stores and returns verbatim — before this they were
-      // collected on a required field and dropped on the floor.
-      productionOrder: str(extra.productionOrder),
-      bom: str(extra.bom),
-      operator: str(pick(row, "assignee")),
-      inputQuantity: str(extra.inputQuantity),
-      outputQuantity: str(extra.outputQuantity),
-      yieldPercent: str(extra.yieldPercent),
-      steps: str(extra.steps),
-      attachments: attachmentsJson(pick(extra, "attachments")),
-      // lower_snake upstream; the form's select is Title Case.
-      status: titleCase(str(pick(row, "status"))) || "Open",
-      notes: str(pick(row, "wo_type")),
-      createdAt: str(pick(row, "created_at")),
-      updatedAt: str(pick(row, "updated_at")),
-    };
-  },
-  fromRecord: (record) =>
-    omitEmpty({
-      num: record.reference,
-      title: record.finishedItem || record.reference,
-      asset_tag: record.workCenter || record.location,
-      wo_type: record.notes || "production",
-      // mes_work_orders CHECKs status against a lower_snake set, so the form's
-      // Title Case has to be folded. Sent raw, every option this form offers
-      // was refused by the column.
-      status: snakeCase(record.status),
-      assignee: record.operator || undefined,
-      attrs: omitEmpty({
-        recipe: record.recipe,
-        quantity: record.quantity,
-        unit: record.unit,
-        materials: record.materials,
-        productionOrder: record.productionOrder,
-        bom: record.bom,
-        inputQuantity: record.inputQuantity,
-        outputQuantity: record.outputQuantity,
-        yieldPercent: record.yieldPercent,
-        steps: record.steps,
-        attachments: attachmentRefs(record.attachments),
-      }),
-    }),
-  createDefaults: (record) =>
-    omitEmpty({
-      priority: "normal",
-      status: snakeCase(record.status) || "open",
-    }),
-});
-
-function downtimeToRecord(row: Row) {
-  return {
-    id: str(pick(row, "id")),
-    reference: str(pick(row, "id")),
-    date: isoDate(pick(row, "started_at", "created_at")),
-    workCenter: str(pick(row, "asset_tag")),
-    reason: str(pick(row, "reason")),
-    minutes: minutesBetween(pick(row, "started_at"), pick(row, "ended_at")),
-    reportedBy: str(pick(row, "operator_ref")),
-    category: str(pick(row, "category")),
-    status: pick(row, "ended_at") ? "Closed" : "Open",
-    notes: str(pick(row, "reason")),
-    createdAt: str(pick(row, "created_at")),
-    // `mes_downtime_events` has no `updated_at`, and the collection revision is
-    // `count:max(updatedAt)`. Reporting `created_at` here meant closing an
-    // event changed neither the count nor the maximum, the ETag matched, and
-    // the client's 304 branch kept serving the event as still Open.
-    updatedAt: str(pick(row, "ended_at", "created_at")),
-  };
-}
-
-const downtimeEvents = resourceAdapter({
-  service: "mes",
-  path: "/api/v1/downtime-events",
-  listQuery: { limit: LIST_LIMIT },
-  idField: "id",
-  noUpdate: true,
-  noDelete: true,
-  toRecord: downtimeToRecord,
-  fromRecord: (record) =>
-    omitEmpty({
-      asset_tag: record.workCenter,
-      category: record.category || "unplanned",
-      reason: record.reason || record.notes,
-      operator_ref: record.reportedBy,
-      started_at: record.date || undefined,
-    }),
-  // There is no PATCH on a downtime event. Closing it is POST /:id/end.
-  actions: [
-    {
-      id: "end",
-      label: "End downtime",
-      doneLabel: "Closed",
-      permission: "mes.add_downtime",
-      whenStatus: ["Open", "open"],
-      async run(_ctx, id) {
-        const payload = await gatewayFetch({
-          service: "mes",
-          path: `/api/v1/downtime-events/${encodeURIComponent(id)}/end`,
-          method: "POST",
-        });
-        const row = unwrapOne<Row>(payload);
-        if (!row) return null;
-        const mapped = downtimeToRecord(row);
-        return {
-          ...mapped,
-          id: str(pick(row, "id")) || id,
-          createdAt: mapped.createdAt || "",
-          updatedAt: mapped.updatedAt || mapped.createdAt || "",
-        };
-      },
-    },
-  ],
-});
-
-/**
- * mes_assets CHECKs status against `running | idle | down | pm | maint`, and
- * neither `titleCase` nor `snakeCase` round-trips that set: "maint" reads as
- * "Maint" and "pm" as "Pm". So the pair is spelled out rather than derived —
- * the form says what an engineer says, the column gets what it accepts.
- *
- * This is why creating a work centre always failed: "Active" was the form's
- * default option and is not a status this column has ever allowed.
- */
-const ASSET_STATUS_TO_SERVICE: Record<string, string> = {
-  idle: "idle",
-  running: "running",
-  down: "down",
-  pm: "pm",
-  maintenance: "maint",
-  maint: "maint",
-};
-
-const ASSET_STATUS_TO_APP: Record<string, string> = {
-  idle: "Idle",
-  running: "Running",
-  down: "Down",
-  pm: "PM",
-  maint: "Maintenance",
-};
-
-function assetStatusForService(value: string): string {
-  return ASSET_STATUS_TO_SERVICE[snakeCase(value)] || "";
-}
-
-function assetStatusForApp(value: string): string {
-  return ASSET_STATUS_TO_APP[value.trim().toLowerCase()] || titleCase(value);
-}
-
-function assetToRecord(row: Row) {
-  return {
-    id: str(pick(row, "tag")),
-    reference: str(pick(row, "tag")),
-    name: str(pick(row, "name")),
-    code: str(pick(row, "tag")),
-    type: str(pick(row, "category")),
-    location: str(pick(row, "location", "plant_code", "section_code")),
-    status: assetStatusForApp(str(pick(row, "status"))) || "Idle",
-    // Typed columns on mes_assets since the capacity migration; the form
-    // collected both and the adapter kept neither.
-    capacityPerHour: str(pick(row, "capacity")),
-    supervisor: str(pick(attrs(row), "supervisor")),
-    notes: str(pick(attrs(row), "notes")),
-    createdAt: str(pick(row, "created_at")),
-    updatedAt: str(pick(row, "updated_at")),
-  };
-}
-
-function assetTag(record: AppRecord): string {
-  const raw = (record.code || record.reference || record.name || "").trim();
-  const tag = raw.replace(/\s+/g, "-").slice(0, 64);
-  return tag || `WC-${Date.now()}`;
-}
-
-async function resolveSectionId(record: AppRecord): Promise<string> {
-  const payload = await gatewayFetch({
-    service: "mes",
-    path: "/api/v1/sections",
-  });
-  const sections = unwrapList<Row>(payload);
-  if (!sections.length) {
-    throw new Error(
-      "Create a plant section in MES before adding a work centre — POST /assets needs section_id.",
-    );
-  }
-  const loc = str(record.location).trim().toLowerCase();
-  const match =
-    sections.find((row) => str(pick(row, "id")) === str(record.location).trim()) ||
-    sections.find((row) => str(pick(row, "code")).toLowerCase() === loc) ||
-    sections.find((row) => str(pick(row, "name")).toLowerCase() === loc) ||
-    sections[0];
-  const id = str(pick(match, "id"));
-  if (!id) {
-    throw new Error("MES returned a section without an id.");
-  }
-  return id;
-}
-
-const assetsBase = resourceAdapter({
-  service: "mes",
-  path: "/api/v1/assets",
-  idField: "tag",
-  noCreate: true,
-  noDelete: true,
-  itemPath: (id) => `/api/v1/assets/${encodeURIComponent(id)}`,
-  toRecord: assetToRecord,
-  fromRecord: (record) =>
-    omitEmpty({
-      name: record.name,
-      status: assetStatusForService(record.status),
-      location: record.location,
-      capacity: Number(record.capacityPerHour) || undefined,
-      attrs: attrsOrOmit({ supervisor: record.supervisor, notes: record.notes }),
-    }),
-});
-
-const assets: RecordAdapter = {
-  ...assetsBase,
-  readOnly: false,
-  async create(_ctx, record) {
-    const sectionId = await resolveSectionId(record);
-    const payload = await gatewayFetch({
-      service: "mes",
-      path: "/api/v1/assets",
-      method: "POST",
-      body: omitEmpty({
-        section_id: sectionId,
-        tag: assetTag(record),
-        name: record.name || record.code || record.reference,
-        category: record.type || "machine",
-        status: assetStatusForService(record.status) || "idle",
-        location: record.location,
-        capacity: Number(record.capacityPerHour) || undefined,
-        attrs: attrsOrOmit({ supervisor: record.supervisor, notes: record.notes }),
-      }),
-    });
-    const row = unwrapOne<Row>(payload);
-    if (!row) return null;
-    const mapped = assetToRecord(row);
-    return {
-      ...mapped,
-      id: str(pick(row, "tag")) || mapped.id || assetTag(record),
-      createdAt: mapped.createdAt || "",
-      updatedAt: mapped.updatedAt || mapped.createdAt || "",
-    };
-  },
-};
 
 const attachments = resourceAdapter({
   service: "finance",
@@ -450,27 +132,6 @@ function verbAction(args: {
       } as AppRecord;
     },
   };
-}
-
-/** Service enums are lower_snake; the app's columns read as prose. */
-function titleCase(value: string): string {
-  if (!value) return "";
-  return value
-    .split(/[\s_]+/)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-}
-
-/**
- * The app's status selects are Title Case; the service's are lower_snake.
- *
- * Tolerates an absent value, like `titleCase` above. A flat record legitimately
- * omits optional columns, and throwing on one would take down a whole save for
- * a field the service does not require.
- */
-function snakeCase(value: string | undefined | null): string {
-  if (!value) return "";
-  return value.trim().toLowerCase().replace(/\s+/g, "_");
 }
 
 /* ──────────────── roast batches (iag-production) ──────────────── */
@@ -696,204 +357,6 @@ const packagingRuns = resourceAdapter({
   noDelete: true,
 });
 
-/* ──────────────── production orders (iag-production) ───────────── */
-
-/**
- * App columns: reference, date, finishedItem, recipe, workCenter, quantity,
- * unit, materials, materialCost, nonInventoryCost, finishedValue, location,
- * division, status, notes, attachments.
- *
- * This screen was unmapped because the service had `POST /production-orders`
- * and `GET /production-orders/schedule` but no plain collection GET, so there
- * was nothing for a REST client to list. The collection GET now exists (same
- * handler as the schedule route, which is where the list has always lived).
- *
- * A production order here is a schedule entry, not a cost object, so the recipe
- * and the costing columns have no typed field upstream. They are not dropped:
- * `prod_production_orders` carries an `attrs` bag that create and update both
- * accept, and they round-trip through it — the same mechanism the item columns
- * use. Two of them, `recipe` and `materials`, are marked required on the form,
- * so discarding them meant making a user fill fields that went nowhere.
- *
- * **`division` is no longer written to `customer`.** It used to be, which put
- * two different concepts in one column: a division is an internal reporting
- * segment and a customer is who the order is for, and the app has no customer
- * field at all. It now rides in `attrs` and still reads back from `customer`
- * so orders written before this change keep showing what they showed.
- */
-const productionOrders = resourceAdapter({
-  service: "production",
-  path: "/api/v1/production-orders",
-  toRecord: (row: Row) => {
-    const extra = attrs(row);
-    return {
-      reference: str(pick(row, "po_num", "id")),
-      // The service stamps created_at; `date` in attrs is the order date the
-      // planner entered, which can be earlier.
-      date: isoDate(pick(extra, "date")) || isoDate(pick(row, "created_at")),
-      dueDate: isoDate(pick(row, "due_at")),
-      finishedItem: str(pick(row, "product")),
-      recipe: str(pick(extra, "recipe")),
-      workCenter: str(pick(row, "asset_tag")),
-      quantity: money(pick(row, "qty_kg")),
-      unit: str(pick(extra, "unit")) || "kg",
-      materials: str(pick(extra, "materials")),
-      materialCost: str(pick(extra, "materialCost")),
-      nonInventoryCost: str(pick(extra, "nonInventoryCost")),
-      finishedValue: str(pick(extra, "finishedValue")),
-      location: str(pick(extra, "location")),
-      division: str(pick(extra, "division")) || str(pick(row, "customer")),
-      greenLot: str(pick(row, "origin_lot")),
-      status: titleCase(str(pick(row, "status"))) || "Queued",
-      notes: str(pick(extra, "notes")),
-      attachments: attachmentsJson(pick(extra, "attachments")),
-      createdAt: "",
-      updatedAt: "",
-    };
-  },
-  fromRecord: (record) =>
-    omitEmpty({
-      po_num: record.reference,
-      product: record.finishedItem,
-      qty_kg: Number(record.quantity) || 0,
-      origin_lot: record.greenLot,
-      asset_tag: record.workCenter,
-      status: snakeCase(record.status),
-      attrs: attrsOrOmit({
-        date: record.date,
-        recipe: record.recipe,
-        unit: record.unit,
-        materials: record.materials,
-        materialCost: record.materialCost,
-        nonInventoryCost: record.nonInventoryCost,
-        finishedValue: record.finishedValue,
-        location: record.location,
-        division: record.division,
-        notes: record.notes,
-        attachments: attachmentRefs(record.attachments),
-      }),
-    }),
-  // Create goes to the schedule sub-path. The collection POST is a legacy
-  // event-publishing verb that persists nothing — posting a new order there
-  // would emit mill-stage events and store no order.
-  createPath: "/api/v1/production-orders/schedule",
-  noUpdate: true,
-  noDelete: true,
-});
-
-
-/* ─────────────── bill of materials (iag-production) ──────────── */
-
-/**
- * App columns: name, code, finishedItem, version, components, batchSize,
- * unit, status, notes, attachments. Upstream is `/boms` (migration 007) —
- * a header keyed on `business_id` (the code) plus real lines, which the
- * form's one `components` field is parsed into and serialised from
- * (records/bom-lines.ts). The same table is the Inventory app's kit.
- *
- * Status is the service's lower-case set; the form's Title Case is folded.
- * Attachments ride in `attrs`, as every other iag-production adapter does.
- */
-const billOfMaterials = resourceAdapter({
-  service: "production",
-  path: "/api/v1/boms",
-  idField: "business_id",
-  itemPath: (id) => `/api/v1/boms/${encodeURIComponent(id)}`,
-  toRecord: (row: Row) => ({
-    name: str(pick(row, "name")),
-    code: str(pick(row, "business_id")),
-    finishedItem: str(pick(row, "finished_item")),
-    version: str(pick(row, "version")),
-    components: serialiseComponents(pick(row, "lines") as BomLineInput[] | undefined),
-    batchSize: money(pick(row, "batch_size")),
-    unit: str(pick(row, "unit")),
-    status: titleCase(str(pick(row, "status"))) || "Draft",
-    notes: str(pick(row, "notes")),
-    attachments: attachmentsJson(pick(attrs(row), "attachments")),
-    createdAt: "",
-    updatedAt: "",
-  }),
-  fromRecord: (record) =>
-    omitEmpty({
-      business_id: record.code,
-      name: record.name,
-      finished_item: record.finishedItem,
-      version: record.version,
-      batch_size: Number(record.batchSize) || undefined,
-      unit: record.unit,
-      status: snakeCase(record.status),
-      notes: record.notes,
-      lines: record.components ? parseComponents(record.components) : undefined,
-      attrs: attrsOrOmit({ attachments: attachmentRefs(record.attachments) }),
-    }),
-  updateMethod: "PATCH",
-});
-
-/* ─────────────── production plans (iag-production) ───────────── */
-
-/**
- * App columns: reference, date, weekOf, product, plannedQuantity, workCenter,
- * owner, status, notes.
- *
- * A plan is a schedule block on a work centre: `asset_tag`, `starts_at` and
- * `ends_at` are the service's required fields, and the rest of what the
- * planner types rides in the block's `attrs` bag, which the service stores and
- * returns verbatim. A block spans the planned week — `weekOf` to seven days
- * later — so the service's calendar shows it where the planner put it.
- *
- * The service has GET and POST on this collection and nothing else, so a plan
- * is created and read, not edited: `noUpdate` / `noDelete` are the router.
- */
-function planToRecord(row: Row): Omit<AppRecord, "id"> & { id?: string } {
-  const extra = attrs(row);
-  return {
-    id: str(pick(row, "id")),
-    reference: str(pick(extra, "reference")) || str(pick(row, "label")),
-    date: isoDate(pick(extra, "date")) || isoDate(pick(row, "created_at")),
-    weekOf: isoDate(pick(row, "starts_at")),
-    product: str(pick(extra, "product")) || str(pick(row, "label")),
-    plannedQuantity: str(pick(extra, "plannedQuantity")),
-    workCenter: str(pick(row, "asset_tag")),
-    owner: str(pick(extra, "owner")),
-    status: str(pick(extra, "status")) || "Planned",
-    notes: str(pick(extra, "notes")),
-    createdAt: str(pick(row, "created_at")),
-    updatedAt: str(pick(row, "created_at")),
-  };
-}
-
-function weekEnd(weekOf: string): string | undefined {
-  const start = Date.parse(weekOf);
-  if (!Number.isFinite(start)) return undefined;
-  return new Date(start + 7 * 24 * 60 * 60 * 1000).toISOString();
-}
-
-const productionPlans = resourceAdapter({
-  service: "production",
-  path: "/api/v1/schedule-blocks",
-  listQuery: scheduleWindow,
-  toRecord: planToRecord,
-  fromRecord: (record) =>
-    omitEmpty({
-      asset_tag: record.workCenter,
-      block_type: "plan",
-      label: record.product || record.reference,
-      starts_at: rfc3339(record.weekOf || record.date),
-      ends_at: weekEnd(record.weekOf || record.date),
-      attrs: attrsOrOmit({
-        reference: record.reference,
-        date: record.date,
-        product: record.product,
-        plannedQuantity: record.plannedQuantity,
-        owner: record.owner,
-        status: record.status,
-        notes: record.notes,
-      }),
-    }),
-  noUpdate: true,
-  noDelete: true,
-});
-
 /* ─────────────── yield reports (derived from runs) ────────────── */
 
 /**
@@ -943,28 +406,19 @@ const yieldReports: RecordAdapter = {
   },
 };
 
-function minutesBetween(start: unknown, end: unknown): string {
-  const startMs = Date.parse(str(start));
-  const endMs = Date.parse(str(end));
-  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
-    return "";
-  }
-  return String(Math.round((endMs - startMs) / 60_000));
-}
-
 export const RECORD_ADAPTERS: Record<string, RecordAdapter> = {
   "documents:attachments": attachments,
-  // iag-mes
-  "production:batch-records": workOrders,
-  "production:downtime-logs": downtimeEvents,
+  // iag-mes — the maintenance tabs
   "production:work-centers": assets,
-  // iag-production
-  "production:production-orders": productionOrders,
+  "production:work-orders": workOrders,
+  "production:batch-records": jobCards,
+  "production:pm-templates": pmTemplates,
+  "production:pm-schedules": pmSchedules,
+  "production:downtime-logs": downtimeEvents,
+  // iag-production — carried over from the Production app, no tab here
   "production:roast-batches": roastBatches,
   "production:packaging-runs": packagingRuns,
-  "production:production-plans": productionPlans,
   "production:yield-reports": yieldReports,
-  "production:bill-of-materials": billOfMaterials,
 };
 
 export function adapterFor(
