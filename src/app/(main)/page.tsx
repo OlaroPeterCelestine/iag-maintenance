@@ -56,7 +56,7 @@ export default function MaintenanceDashboardPage() {
     if (!hydrated) return [];
     void tick;
     try {
-      return loadRecords("production", "production-orders");
+      return loadRecords("production", "work-orders");
     } catch {
       return [];
     }
@@ -66,6 +66,15 @@ export default function MaintenanceDashboardPage() {
     void tick;
     try {
       return loadRecords("production", "work-centers");
+    } catch {
+      return [];
+    }
+  }, [tick, hydrated]);
+  const schedules = useMemo(() => {
+    if (!hydrated) return [];
+    void tick;
+    try {
+      return loadRecords("production", "pm-schedules");
     } catch {
       return [];
     }
@@ -83,6 +92,7 @@ export default function MaintenanceDashboardPage() {
   const openOrders = orders.filter(isOpen);
   const stopped = machines.filter((row) => /down|maintenance/i.test(String(row.status || "")));
   const openDowntime = downtime.filter(isOpen);
+  const overduePm = schedules.filter((row) => /overdue/i.test(String(row.status || "")));
   const recent = [...orders]
     .sort((a, b) => String(b.date || b.updatedAt || "").localeCompare(String(a.date || a.updatedAt || "")))
     .slice(0, 8);
@@ -111,9 +121,9 @@ export default function MaintenanceDashboardPage() {
       </header>
 
       <div className="min-h-0 flex-1 overflow-auto p-4">
-        <div className="mb-4 grid gap-3 sm:grid-cols-3">
+        <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Link
-            href="/production?view=production-orders"
+            href="/production?view=work-orders"
             className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:border-sky-300 dark:border-slate-800 dark:bg-slate-950"
           >
             <p className="text-[11px] uppercase tracking-wide text-slate-500">Open work orders</p>
@@ -133,16 +143,23 @@ export default function MaintenanceDashboardPage() {
             <p className="text-[11px] uppercase tracking-wide text-slate-500">Open downtime</p>
             <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-50">{openDowntime.length}</p>
           </Link>
+          <Link
+            href="/production?view=pm-schedules"
+            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:border-sky-300 dark:border-slate-800 dark:bg-slate-950"
+          >
+            <p className="text-[11px] uppercase tracking-wide text-slate-500">Overdue PM</p>
+            <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-50">{overduePm.length}</p>
+          </Link>
         </div>
 
         <div className="mb-4 flex flex-wrap gap-2">
           {[
             { href: "/production?view=work-centers", label: "Machines" },
-            { href: "/production?view=production-orders", label: "Work orders" },
-            { href: "/production?view=production-plans", label: "Schedules" },
-            { href: "/production?view=bill-of-materials", label: "Spare parts" },
-            { href: "/production?view=downtime-logs", label: "Downtime" },
+            { href: "/production?view=work-orders", label: "Work orders" },
             { href: "/production?view=batch-records", label: "Job cards" },
+            { href: "/production?view=pm-schedules", label: "Schedules" },
+            { href: "/production?view=pm-templates", label: "PM templates" },
+            { href: "/production?view=downtime-logs", label: "Downtime" },
           ].map((item) => (
             <Link
               key={item.href}
@@ -163,8 +180,8 @@ export default function MaintenanceDashboardPage() {
             <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500 dark:bg-slate-900">
               <tr>
                 <th className="px-4 py-2">Reference</th>
-                <th className="px-4 py-2">Machine</th>
-                <th className="px-4 py-2">Hours</th>
+                <th className="px-4 py-2">Work order</th>
+                <th className="px-4 py-2">Priority</th>
                 <th className="px-4 py-2">Status</th>
               </tr>
             </thead>
@@ -182,9 +199,9 @@ export default function MaintenanceDashboardPage() {
                       {row.reference || String(row.id || "").slice(0, 8)}
                     </td>
                     <td className="px-4 py-2 text-slate-600 dark:text-slate-300">
-                      {row.finishedItem || row.name || "—"}
+                      {row.title || row.workCenter || "—"}
                     </td>
-                    <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{row.quantity || "—"}</td>
+                    <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{row.priority || "—"}</td>
                     <td className={cn("px-4 py-2", isOpen(row) ? "text-orange-700" : "text-slate-500")}>
                       {row.status || "Open"}
                     </td>
