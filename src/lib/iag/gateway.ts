@@ -320,7 +320,12 @@ export async function gatewayFetch<T = unknown>(req: GatewayRequest): Promise<T>
   const token = req.token !== undefined ? req.token : await readPlatformToken();
 
   const run = async (bearer: string | null): Promise<Response> => {
-    const headers: Record<string, string> = { Accept: "application/json" };
+    const headers: Record<string, string> = {
+      Accept: "application/json",
+      // Names this tool to the gateway so per-user usage is attributed to it
+      // (iag-api-gateway src/usage.ts; read on IAG Admin's Usage page).
+      "X-IAG-App": process.env.IAG_APP_NAME?.trim() || "iag-maintenance",
+    };
     if (bearer) headers.Authorization = `Bearer ${bearer}`;
     if (req.body !== undefined) headers["Content-Type"] = "application/json";
     return fetch(url, {
