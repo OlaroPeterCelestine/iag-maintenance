@@ -49,3 +49,4 @@ fcm-sa.json
 __pycache__/
 *.py[cod]
 .venv/
+scripts/out/

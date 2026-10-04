@@ -397,6 +397,26 @@ function isInventoryItemPickerField(key: string, label?: string) {
 }
 
 /** Fields that should pick from Inventory → Locations (stores / warehouses). */
+/**
+ * Whether a form field draws the store / warehouse location picker. Never on
+ * the MES maintenance forms: a machine's "Site / location" is free text MES
+ * stores as given, and the picker — the finance app's inventory locations —
+ * offered nothing there ("No locations yet") and could not be filled in.
+ */
+/**
+ * Whether a field draws the chart-of-accounts picker. Never on the MES
+ * maintenance forms: the heuristic reads "asset category" as a GL asset
+ * account, which turned PM Templates' "Machine type" (assetCategory) into an
+ * account picker offering "No accounts yet" — it could not be filled in.
+ */
+function usesCoaPicker(entityKey: string, key: string, label?: string) {
+  return !MES_MAINTENANCE_ENTITIES.has(entityKey) && isCoaPickerField(key, label, entityKey);
+}
+
+function usesWarehouseLocationPicker(entityKey: string, key: string, label?: string) {
+  return !MES_MAINTENANCE_ENTITIES.has(entityKey) && isInventoryLocationPickerField(key, label);
+}
+
 function isInventoryLocationPickerField(key: string, label?: string) {
   const normalizedKey = key.toLowerCase();
   const normalizedLabel = (label || "").toLowerCase();
@@ -2814,7 +2834,7 @@ function RecordFormModal({
       if (field.key === "department" || field.key === "driver") {
         continue;
       }
-      if (!isCoaPickerField(field.key, field.label, definition.key)) continue;
+      if (!usesCoaPicker(definition.key, field.key, field.label)) continue;
       let seed = state?.record?.[field.key] || "";
       if (
         definition.key === "fuel-logs" &&
@@ -2838,7 +2858,7 @@ function RecordFormModal({
   const [locationPickers, setLocationPickers] = useState<Record<string, string>>(() => {
     const init: Record<string, string> = {};
     for (const field of definition.fields) {
-      if (!isInventoryLocationPickerField(field.key, field.label)) continue;
+      if (!usesWarehouseLocationPicker(definition.key, field.key, field.label)) continue;
       init[field.key] = state?.record?.[field.key] || "";
     }
     return init;
@@ -3074,7 +3094,7 @@ function RecordFormModal({
       if (field.key === "department" || field.key === "driver") {
         continue;
       }
-      if (!isCoaPickerField(field.key, field.label, definition.key)) continue;
+      if (!usesCoaPicker(definition.key, field.key, field.label)) continue;
       let seed = state?.record?.[field.key] || "";
       // Fuel logs may only have legacy paidFrom — seed the bank picker from it.
       if (
@@ -3103,7 +3123,7 @@ function RecordFormModal({
     setItemPickers(nextItems);
     const nextLocations: Record<string, string> = {};
     for (const field of definition.fields) {
-      if (!isInventoryLocationPickerField(field.key, field.label)) continue;
+      if (!usesWarehouseLocationPicker(definition.key, field.key, field.label)) continue;
       nextLocations[field.key] = state?.record?.[field.key] || "";
     }
     setLocationPickers(nextLocations);
@@ -5515,7 +5535,7 @@ function RecordFormModal({
               }
               if (
                 !isCoa &&
-                isCoaPickerField(field.key, field.label, definition.key) &&
+                usesCoaPicker(definition.key, field.key, field.label) &&
                 !(
                   (definition.key === "employees" || definition.key === "payslips") &&
                   field.key === "bankAccount"
@@ -5769,7 +5789,7 @@ function RecordFormModal({
                   </div>
                 );
               }
-              if (isInventoryLocationPickerField(field.key, field.label)) {
+              if (usesWarehouseLocationPicker(definition.key, field.key, field.label)) {
                 const current = locationPickers[field.key] ?? value;
                 const pickerOptions = activeLocationOptions.map((location) => ({
                   value: location.value,
