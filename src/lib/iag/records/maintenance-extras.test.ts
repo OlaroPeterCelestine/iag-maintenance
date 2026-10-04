@@ -199,7 +199,20 @@ describe("PM edits", () => {
     expect(saved?.template).toBe("PM-GREASE");
   });
 
+  it("accept the stored code, template and machine sent back unchanged", async () => {
+    // The edit form sends every field (found by the live CRUD run).
+    routes["/api/v1/pm-schedules"] = { items: [{ id: "sch-1", template_id: "tpl-1", asset_tag: "HUL-1" }] };
+    await RECORD_ADAPTERS["production:pm-templates"].update!(ctx, "tpl-1", record({ code: "PM-GREASE", intervalDays: "45" }));
+    await RECORD_ADAPTERS["production:pm-schedules"].update!(
+      ctx,
+      "sch-1",
+      record({ template: "PM-GREASE", workCenter: "HUL-1", nextDue: "2026-12-01" }),
+    );
+    expect(writes().map((c) => c.path)).toEqual(["/api/v1/pm-templates/tpl-1", "/api/v1/pm-schedules/sch-1"]);
+  });
+
   it("refuse to move a schedule to another template or machine", async () => {
+    routes["/api/v1/pm-schedules"] = { items: [{ id: "sch-1", template_id: "tpl-1", asset_tag: "HUL-1" }] };
     await expect(
       RECORD_ADAPTERS["production:pm-schedules"].update!(ctx, "sch-1", record({ workCenter: "CMP1" })),
     ).rejects.toThrow(/fixed/);

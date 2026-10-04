@@ -418,6 +418,18 @@ describe("machines", () => {
     expect(writes()[0].body).toEqual({ status: "retired" });
   });
 
+  it("accept an edit that sends back the stored criticality and section unchanged", async () => {
+    // The edit form sends every field; refusing any criticality blocked every
+    // edit of every machine (found by the live CRUD run).
+    routes["/api/v1/assets/HUL-1"] = { tag: "HUL-1", criticality: "C", section_code: "hulling", attrs: { supervisor: "Okello" } };
+    await RECORD_ADAPTERS["production:work-centers"].update!(
+      ctx,
+      "HUL-1",
+      record({ criticality: "C — medium", section: "hulling", notes: "new note" }),
+    );
+    expect(writes()[0].body!.attrs).toEqual({ supervisor: "Okello", notes: "new note" });
+  });
+
   it("say plainly that criticality cannot be edited, instead of dropping it", async () => {
     await expect(
       RECORD_ADAPTERS["production:work-centers"].update!(

@@ -554,8 +554,13 @@ export const pmTemplates: RecordAdapter = {
   ...pmTemplatesBase,
   readOnly: false,
   async update(_ctx, id, record) {
+    // The edit form sends the code back unchanged with every save; refuse only
+    // a real change (refusing any value blocked every template edit).
     if (record.code !== undefined) {
-      throw new Error("A template's code is fixed. Create a new template for a new code.");
+      const current = (await listTemplates()).find((t) => str(pick(t, "id")) === id);
+      if (current && str(record.code).trim().toLowerCase() !== str(pick(current, "code")).toLowerCase()) {
+        throw new Error("A template's code is fixed. Create a new template for a new code.");
+      }
     }
     const payload = await gatewayFetch({
       service: "mes",
@@ -674,15 +679,25 @@ export const pmSchedules: RecordAdapter = {
    * — a different pair is a different schedule.
    */
   async update(_ctx, id, record) {
+    const templates = await listTemplates();
+    // Sent back unchanged with every save; refuse only a real change.
     if (record.template !== undefined || record.workCenter !== undefined) {
-      throw new Error(
-        "A schedule's template and machine are fixed. Add a new schedule for a different pair.",
-      );
+      const schedules = unwrapList<Row>(await gatewayFetch({ service: "mes", path: "/api/v1/pm-schedules" }));
+      const current = schedules.find((r) => str(pick(r, "id")) === id);
+      const currentCode = str(pick(templates.find((t) => str(pick(t, "id")) === str(pick(current || {}, "template_id"))) || {}, "code"));
+      const templateChanged =
+        record.template !== undefined && str(record.template).trim().toLowerCase() !== currentCode.toLowerCase();
+      const machineChanged =
+        record.workCenter !== undefined && str(record.workCenter).trim() !== str(pick(current || {}, "asset_tag"));
+      if (current && (templateChanged || machineChanged)) {
+        throw new Error(
+          "A schedule's template and machine are fixed. Add a new schedule for a different pair.",
+        );
+      }
     }
     const nextDue = plantInstant(record.nextDue, "06:00");
     if (!nextDue) throw new Error("Give the schedule a next due date.");
-    const [templates, payload] = await Promise.all([
-      listTemplates(),
+    const [payload] = await Promise.all([
       gatewayFetch({
         service: "mes",
         path: `/api/v1/pm-schedules/${encodeURIComponent(id)}`,
@@ -920,23 +935,35 @@ export const assets: RecordAdapter = {
   },
 
   /**
-   * PATCH /assets/:tag replaces `attrs` whole, and the form sends only what
-   * changed — so editing the notes used to wipe the responsible technician.
-   * The stored bag is read first and the change laid over it.
+   * PATCH /assets/:tag replaces `attrs` whole, so the stored bag is read first
+   * and the change laid over it — editing the notes used to wipe the
+   * responsible technician.
+   *
+   * Criticality and section are set on registration; MES's PATCH has neither.
+   * The edit form sends them back unchanged with every save, so they are
+   * refused only when they differ from what MES holds — refusing any value
+   * blocked every edit of every machine.
    */
   async update(_ctx, id, record) {
-    if (record.criticality !== undefined) {
+    const current = await getAsset(id);
+    if (!current) throw new Error(`Machine ${id} was not found in MES.`);
+    if (
+      record.criticality !== undefined &&
+      (criticalityForService(record.criticality) || "") !== str(pick(current, "criticality"))
+    ) {
       throw new Error(
         "Criticality is set when a machine is registered; MES has no edit for it yet.",
       );
     }
-    if (record.section !== undefined) {
+    if (
+      record.section !== undefined &&
+      str(record.section).trim().toLowerCase() !== str(pick(current, "section_code")).toLowerCase()
+    ) {
       throw new Error("A machine's plant section is set when it is registered.");
     }
     let mergedAttrs: Record<string, unknown> | undefined;
     if (record.supervisor !== undefined || record.notes !== undefined) {
-      const current = await getAsset(id);
-      mergedAttrs = { ...(current ? attrs(current) : {}) };
+      mergedAttrs = { ...attrs(current) };
       if (record.supervisor !== undefined) mergedAttrs.supervisor = record.supervisor;
       if (record.notes !== undefined) mergedAttrs.notes = record.notes;
     }
