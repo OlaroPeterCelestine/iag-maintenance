@@ -625,6 +625,18 @@ MAINTENANCE_RECORD_PICKERS.assignee = technicianPicker(["work-orders"]);
 MAINTENANCE_RECORD_PICKERS.technician = technicianPicker(["batch-records"]);
 MAINTENANCE_RECORD_PICKERS.supervisor = technicianPicker(["work-centers"]);
 MAINTENANCE_RECORD_PICKERS.reportedBy = technicianPicker(["downtime-logs"]);
+// MES plants, for an energy reading: the meter's plant code.
+MAINTENANCE_RECORD_PICKERS.plantCode = {
+  on: ["energy"],
+  entity: "plants",
+  placeholder: "Select plant…",
+  empty: "No plants in MES yet.",
+  option: (row: ManagerRecord) => {
+    const value = (row.code || "").trim();
+    if (!value || /inactive/i.test(row.status || "")) return null;
+    return { value, label: row.name ? `${row.name} (${value})` : value, meta: row.region || undefined };
+  },
+};
 
 function maintenanceRecordOptions(fieldKey: string) {
   const picker = MAINTENANCE_RECORD_PICKERS[fieldKey];
@@ -2691,6 +2703,8 @@ const MES_MAINTENANCE_ENTITIES = new Set([
   "reliability",
   "alerts",
   "recommendations",
+  "energy",
+  "machine-performance",
 ]);
 
 function supportsSaveAsDraft(entityKey: string) {
