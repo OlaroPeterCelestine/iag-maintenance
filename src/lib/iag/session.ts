@@ -132,6 +132,17 @@ export async function platformLogin(
   if (!claims) {
     throw new GatewayError(502, "Platform issued a token that could not be read");
   }
+  // An administrator can block a person from this tool alone by putting them
+  // in its no-access-<tool> group (iag-authentication domain/tool_access.go).
+  // The gateway refuses the tool's requests for them anyway; refusing here
+  // says so at sign-in instead of opening a workspace that cannot load.
+  const blockGroup = `no-access-${(process.env.IAG_APP_NAME?.trim() || "iag-maintenance").toLowerCase().replace(/^iag-/, "")}`;
+  if (!claims.isSuperuser && claims.groups.some((g) => g.trim().toLowerCase() === blockGroup)) {
+    throw new GatewayError(
+      403,
+      "Your account is not allowed to sign in to this tool. Ask an administrator to restore access.",
+    );
+  }
   return { tokens, claims, user: appUserFromClaims(claims) };
 }
 
