@@ -363,6 +363,8 @@ const RECORD_PAGE_DESCRIPTION: Record<string, string> = {
   "production|Downtime": "Time a machine was stopped, and why. End downtime on the row menu closes it.",
   "production|Spare Parts": "Parts kept for the machines — warehouse items, so stock is what the store holds. Receive stock in the Inventory app.",
   "production|Reliability": "Mean time between failures, mean time to repair, and availability per machine over the last 90 days.",
+  "production|Machine Performance": "OEE, availability, performance, quality and downtime per machine per day, from iag-production's rollup. Read-only.",
+  "production|Energy": "kWh per plant over 30 days by tariff band, beside output — kWh per kg is the efficiency figure. Record meter readings here.",
   "production|Alerts": "MES alerts — telemetry limits and overdue preventive maintenance. Acknowledge or resolve from the row menu.",
   "production|Recommendations": "Maintenance suggestions from MES. Accepting one records the decision; raise the work order under Work Orders.",
 

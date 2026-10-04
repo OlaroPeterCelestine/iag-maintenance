@@ -579,6 +579,39 @@ function maintenanceFields(value: string): EntityField[] | null {
       { key: "status", label: "Status", readOnly: true },
     ];
   }
+  if (value === "machine performance") {
+    return [
+      { key: "date", label: "Date", readOnly: true },
+      { key: "scope", label: "Machine", readOnly: true },
+      { key: "kpi", label: "KPI", readOnly: true },
+      { key: "value", label: "Value", readOnly: true },
+      { key: "target", label: "Target", readOnly: true },
+      { key: "status", label: "Status", readOnly: true },
+      { key: "category", label: "Category", readOnly: true },
+    ];
+  }
+  if (value === "energy") {
+    return [
+      { key: "plantCode", label: "Plant", required: true },
+      { key: "workCenter", label: "Machine (blank: the whole plant's meter)" },
+      { key: "kwh", label: "kWh", type: "number", required: true },
+      select("tariffBand", "Tariff band", ["Standard", "Peak", "Off Peak"], true),
+      date("date", "Read on", true),
+      { key: "time", label: "Time (HH:MM)", placeholder: "12:00" },
+      { key: "plant", label: "Plant", readOnly: true },
+      { key: "kwhTotal", label: "kWh (30 days)", readOnly: true },
+      { key: "kwhPeak", label: "Peak kWh", readOnly: true },
+      { key: "kwhStandard", label: "Standard kWh", readOnly: true },
+      { key: "kwhOffPeak", label: "Off-peak kWh", readOnly: true },
+      { key: "peakShare", label: "Peak share", readOnly: true },
+      { key: "outputKg", label: "Output kg (30 days)", readOnly: true },
+      { key: "kwhPerKg", label: "kWh per kg", readOnly: true },
+      { key: "status", label: "Status", readOnly: true },
+    ];
+  }
+  if (value === "plants") {
+    return [{ key: "code", label: "Code", readOnly: true }, { key: "name", label: "Plant", readOnly: true }, { key: "region", label: "Region", readOnly: true }];
+  }
   if (value === "technicians") {
     return [
       { key: "name", label: "Technician", readOnly: true },
@@ -602,6 +635,8 @@ const MAINTENANCE_COLUMNS: Record<string, string[]> = {
   reliability: ["workCenter", "mtbfHours", "mttrHours", "availability", "failures", "status"],
   alerts: ["date", "severity", "workCenter", "message", "status"],
   recommendations: ["date", "title", "workCenter", "confidence", "status"],
+  "machine-performance": ["date", "scope", "kpi", "value", "target", "status"],
+  energy: ["plant", "kwhTotal", "kwhPeak", "kwhStandard", "kwhOffPeak", "peakShare", "outputKg", "kwhPerKg", "status"],
 };
 
 function fieldsFor(label: string): EntityField[] {

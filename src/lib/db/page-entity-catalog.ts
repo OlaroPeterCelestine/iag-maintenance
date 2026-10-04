@@ -4219,6 +4219,58 @@ export const PAGE_ENTITY_CATALOG: PageEntityMeta[] =
       "plant",
       "status"
     ]
+  },
+  {
+    "module": "production",
+    "storageModule": "production",
+    "entity": "energy",
+    "label": "Energy",
+    "table": null,
+    "columns": [
+      "plantCode",
+      "workCenter",
+      "kwh",
+      "tariffBand",
+      "date",
+      "time",
+      "plant",
+      "kwhTotal",
+      "kwhPeak",
+      "kwhStandard",
+      "kwhOffPeak",
+      "peakShare",
+      "outputKg",
+      "kwhPerKg",
+      "status"
+    ]
+  },
+  {
+    "module": "production",
+    "storageModule": "production",
+    "entity": "machine-performance",
+    "label": "Machine Performance",
+    "table": null,
+    "columns": [
+      "date",
+      "scope",
+      "kpi",
+      "value",
+      "target",
+      "status",
+      "category"
+    ]
+  },
+  {
+    "module": "production",
+    "storageModule": "production",
+    "entity": "plants",
+    "label": "Plants",
+    "table": null,
+    "columns": [
+      "code",
+      "name",
+      "region"
+    ]
   }
 ]
 ;

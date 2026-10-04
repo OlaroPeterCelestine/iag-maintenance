@@ -3,6 +3,8 @@
 import type { ModuleSlug } from "@/lib/module-data";
 import type { Icon, IconProps } from "iconsax-react";
 import {
+  Flash,
+  Speedometer,
   Activity,
   ArchiveBox,
   Bank,
@@ -105,6 +107,8 @@ export const SIDEBAR_ITEM_ICONS: Record<string, Icon> = {
   "Downtime": TimerPause,
   "Spare Parts": Setting3,
   "Reliability": Activity,
+  "Machine Performance": Speedometer,
+  "Energy": Flash,
   "Alerts": Warning2,
   "Recommendations": LampCharge,
   "Bill of Materials": Hierarchy2,
