@@ -933,6 +933,8 @@ export const NAV_MODULES: {
       "Spare Parts",
       "Downtime",
       "Reliability",
+      "Machine Performance",
+      "Energy",
       "Alerts",
       "Recommendations",
     ],
