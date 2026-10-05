@@ -446,7 +446,7 @@ export async function loginWithCredentials(
       canEdit: db.user.canEdit,
       canDelete: db.user.canDelete,
     };
-    saveList(USERS_KEY, [row]);
+    saveList(USERS_KEY, [row], { persist: false });
     justLoggedOutAt = 0;
     try {
       sessionStorage.removeItem(JUST_LOGGED_OUT_KEY);

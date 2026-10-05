@@ -120,7 +120,8 @@ export function loadManagerSettings(): ManagerSettings {
       merged.baseCurrencyName = defaultManagerSettings.baseCurrencyName;
       merged.baseCurrencySymbol = defaultManagerSettings.baseCurrencySymbol;
       merged.baseCurrencyDecimals = defaultManagerSettings.baseCurrencyDecimals;
-      saveManagerSettings(merged);
+      // Do not persist here. This key is administrator-only; writing it from a
+      // page load 403s for every other role and shows "Not saved to database".
     }
     return merged;
   } catch {
@@ -1214,10 +1215,18 @@ export function loadList<T>(key: string, fallback: T[]): T[] {
 }
 
 /** Memory + durable Postgres write for settings lists (tax codes, users mirror, etc.). */
-export function saveList<T>(key: string, rows: T[]): Promise<boolean> {
+export function saveList<T>(
+  key: string,
+  rows: T[],
+  options?: { persist?: boolean },
+): Promise<boolean> {
   if (typeof window === "undefined") return Promise.resolve(false);
   setMemorySetting(key, rows);
   window.dispatchEvent(new CustomEvent("financeiag-settings-changed"));
+  // Users and roles are administrator-only settings. Boot, login, and page-load
+  // mirrors must stay in memory — a non-admin PUT is HTTP 403 and was toasted
+  // as "Not saved to database" on unrelated screens such as invoices.
+  if (options?.persist === false) return Promise.resolve(true);
   return persistSettingToDb(key, rows);
 }
 

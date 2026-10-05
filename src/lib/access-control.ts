@@ -527,13 +527,13 @@ export function ensureSystemRoles(roles: RoleRow[]): RoleRow[] {
     }
   }
   if (changed && typeof window !== "undefined") {
-    saveList(ROLES_KEY, next);
+    saveList(ROLES_KEY, next, { persist: false });
   }
   return next;
 }
 
-export function saveRoles(roles: RoleRow[]) {
-  saveList(ROLES_KEY, roles);
+export function saveRoles(roles: RoleRow[], options?: { persist?: boolean }) {
+  saveList(ROLES_KEY, roles, options);
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("financeiag-records-changed"));
   }

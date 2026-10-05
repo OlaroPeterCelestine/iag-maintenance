@@ -138,7 +138,7 @@ export default function ProfilePage() {
       const idx = users.findIndex((u) => u.id === updated.id || u.id === session?.userId);
       if (idx >= 0) {
         users[idx] = { ...users[idx], name: updated.name || trimmed };
-        saveList(USERS_KEY, users);
+        saveList(USERS_KEY, users, { persist: false });
       }
       setUser(getCurrentSessionUser());
       setNameSaved(true);

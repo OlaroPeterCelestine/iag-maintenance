@@ -164,7 +164,7 @@ async function refreshAppUsersForEmail(): Promise<void> {
   try {
     const { fetchDbUsers } = await import("@/lib/auth-api");
     const users = await fetchDbUsers();
-    if (users.length) saveList(USERS_KEY, users);
+    if (users.length) saveList(USERS_KEY, users, { persist: false });
   } catch {
     /* keep memory / defaults */
   }

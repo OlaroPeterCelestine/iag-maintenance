@@ -2037,6 +2037,12 @@ export async function persistSettingToDb(
           settingsWriteBlockedUntil = Date.now() + SETTINGS_WRITE_BLOCK_MS;
           return false;
         }
+        if (res.status === 403) {
+          // Administrator-only key (users, roles, email, backups, …).
+          // The value is already in memory. Retrying is the 403 storm, and
+          // toasting it lands on whatever page happened to be open.
+          return false;
+        }
         if (res.status === 429) {
           // Tight retries amplify rate-limit storms; wait and give up after one backoff.
           const retryAfter = Number(res.headers.get("Retry-After") || "0");
@@ -2233,7 +2239,7 @@ async function applySessionFromAuthMe(): Promise<boolean> {
     let users: Awaited<ReturnType<typeof fetchDbUsers>> = [];
     try {
       users = await fetchDbUsers();
-      if (users.length) saveList(USERS_KEY, users);
+      if (users.length) saveList(USERS_KEY, users, { persist: false });
     } catch {
       /* directory optional for basic identity */
     }
@@ -2242,7 +2248,7 @@ async function applySessionFromAuthMe(): Promise<boolean> {
       const { fetchDbRoles } = await import("@/lib/auth-api");
       const { saveRoles } = await import("@/lib/access-control");
       const roles = await fetchDbRoles();
-      if (roles.length) saveRoles(roles);
+      if (roles.length) saveRoles(roles, { persist: false });
     } catch {
       /* roles optional — page matrix falls back to local defaults */
     }
