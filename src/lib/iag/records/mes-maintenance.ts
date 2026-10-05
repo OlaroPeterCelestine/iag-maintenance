@@ -837,12 +837,13 @@ function assetToRecord(row: Row): Omit<AppRecord, "id"> & { id?: string } {
     code: str(pick(row, "tag")),
     type: str(pick(row, "category")),
     section: str(pick(row, "section_code")),
-    // The factory this machine stands in, on its own. `location` coalesces
-    // three columns and so cannot be compared with a factory code; the factory
-    // scope needs an unambiguous one, and every other record in this app
+    // The factory this machine stands in. Every other record in this app
     // reaches its factory through its machine.
     plantCode: str(pick(row, "plant_code")),
-    location: str(pick(row, "location", "plant_code", "section_code")),
+    // Where on the shop floor — a free note ("Bay 3"). It used to fall back to
+    // the factory or section code, which showed the same fact twice under
+    // different names.
+    location: str(pick(row, "location")),
     criticality: CRITICALITY_TO_APP[str(pick(row, "criticality"))] || "",
     status: assetStatusForApp(str(pick(row, "status"))) || "Idle",
     capacityPerHour: str(pick(row, "capacity")),
@@ -860,38 +861,58 @@ function assetTag(record: AppRecord): string {
 }
 
 /**
- * The section a new machine is filed under. POST /assets requires one.
+ * The shop floor a machine stands on, as the MES section id.
  *
- * This used to fall back to the first section MES returned whenever the typed
- * site matched none, so a typo filed the machine in whichever plant sorted
- * first. Now an unmatched section is refused with the list of real ones; the
- * only fallback is a plant with exactly one section, where there is no choice.
+ * Section codes are unique per factory only — "roasting" at two factories is
+ * two floors — so the floor is looked up within the machine's factory. It used
+ * to match the first section anywhere with that code, and before that fell
+ * back to whichever section sorted first, so a machine could be filed in the
+ * wrong factory without anyone being told.
+ *
+ * `fallback` fills in whichever half an edit left out: moving a machine to
+ * another floor in the same factory sends only the floor.
  */
-export async function resolveSectionId(record: AppRecord): Promise<string> {
+export async function resolveSectionId(
+  record: AppRecord,
+  fallback: { plantCode?: string; section?: string } = {},
+): Promise<string> {
   const payload = await gatewayFetch({ service: "mes", path: "/api/v1/sections" });
   const sections = unwrapList<Row>(payload);
   if (!sections.length) {
-    throw new InputError("Create a plant section in MES before registering a machine.");
+    throw new InputError("Add a shop floor under Shop Floors before registering a machine.");
   }
-  const wanted = str(record.section || record.location).trim().toLowerCase();
-  const match = wanted
-    ? sections.find((row) => str(pick(row, "id")).toLowerCase() === wanted) ||
-      sections.find((row) => str(pick(row, "code")).toLowerCase() === wanted) ||
-      sections.find((row) => str(pick(row, "name")).toLowerCase() === wanted)
-    : sections.length === 1
-      ? sections[0]
-      : undefined;
-  if (!match) {
-    const known = sections
-      .map((row) => [str(pick(row, "code")), str(pick(row, "name"))].filter(Boolean).join(" — "))
-      .join("; ");
+  const plant = str(record.plantCode ?? fallback.plantCode).trim().toLowerCase();
+  const wanted = str(record.section ?? fallback.section).trim().toLowerCase();
+  const plantOf = (row: Row) => str(pick(row, "plant_code", "plant")).toLowerCase();
+  const inPlant = plant ? sections.filter((row) => plantOf(row) === plant) : sections;
+  const describe = (rows: Row[]) =>
+    rows
+      .map((row) => `${str(pick(row, "plant_code", "plant"))}/${str(pick(row, "code"))}`)
+      .join(", ");
+  if (plant && !inPlant.length) {
+    throw new InputError(`Factory "${record.plantCode ?? fallback.plantCode}" has no shop floors yet — add one under Shop Floors.`);
+  }
+  if (!wanted) {
+    if (inPlant.length === 1) return str(pick(inPlant[0], "id"));
+    throw new InputError(`Say which shop floor the machine is on. Shop floors: ${describe(inPlant)}.`);
+  }
+  const matches = inPlant.filter(
+    (row) =>
+      str(pick(row, "id")).toLowerCase() === wanted ||
+      str(pick(row, "code")).toLowerCase() === wanted ||
+      str(pick(row, "name")).toLowerCase() === wanted,
+  );
+  if (!matches.length) {
     throw new InputError(
-      wanted
-        ? `No plant section "${record.section || record.location}". Sections: ${known}.`
-        : `Say which plant section the machine is in. Sections: ${known}.`,
+      `No shop floor "${record.section ?? fallback.section}"${plant ? ` at ${record.plantCode ?? fallback.plantCode}` : ""}. Shop floors: ${describe(inPlant)}.`,
     );
   }
-  const id = str(pick(match, "id"));
+  if (matches.length > 1) {
+    throw new InputError(
+      `"${record.section ?? fallback.section}" is a shop floor at more than one factory (${describe(matches)}). Pick the factory.`,
+    );
+  }
+  const id = str(pick(matches[0], "id"));
   if (!id) throw new Error("MES returned a section without an id.");
   return id;
 }
@@ -945,10 +966,14 @@ export const assets: RecordAdapter = {
    * and the change laid over it — editing the notes used to wipe the
    * responsible technician.
    *
-   * Criticality and section are set on registration; MES's PATCH has neither.
-   * The edit form sends them back unchanged with every save, so they are
-   * refused only when they differ from what MES holds — refusing any value
-   * blocked every edit of every machine.
+   * Criticality is set on registration; MES's PATCH has none. The edit form
+   * sends it back unchanged with every save, so it is refused only when it
+   * differs from what MES holds — refusing any value blocked every edit.
+   *
+   * A different factory or shop floor moves the machine (iag-mes#11 takes
+   * section_id; the factory follows the floor). An MES without that change
+   * ignores the key, so the stored floor is checked afterwards rather than
+   * reporting a move that did not happen.
    */
   async update(_ctx, id, record) {
     const current = await getAsset(id);
@@ -961,12 +986,24 @@ export const assets: RecordAdapter = {
         "Criticality is set when a machine is registered; MES has no edit for it yet.",
       );
     }
-    if (
-      record.section !== undefined &&
-      str(record.section).trim().toLowerCase() !== str(pick(current, "section_code")).toLowerCase()
-    ) {
-      throw new InputError("A machine's plant section is set when it is registered.");
-    }
+    const currentPlant = str(pick(current, "plant_code"));
+    const currentSection = str(pick(current, "section_code"));
+    const differs = (next: unknown, stored: string) =>
+      next !== undefined && str(next).trim().toLowerCase() !== stored.toLowerCase();
+    const moving = differs(record.plantCode, currentPlant) || differs(record.section, currentSection);
+    const sectionId = moving
+      ? await resolveSectionId(
+          {
+            ...record,
+            // A new factory with the old floor's code is a different floor;
+            // only carry the floor over when the factory is unchanged.
+            section:
+              record.section ??
+              (differs(record.plantCode, currentPlant) ? undefined : currentSection),
+          },
+          { plantCode: currentPlant },
+        )
+      : undefined;
     let mergedAttrs: Record<string, unknown> | undefined;
     if (record.supervisor !== undefined || record.notes !== undefined) {
       mergedAttrs = { ...attrs(current) };
@@ -984,9 +1021,16 @@ export const assets: RecordAdapter = {
         capacity: numberOrUndefined(record.capacityPerHour),
         purchased_on: rfc3339(record.purchasedOn),
         attrs: mergedAttrs,
+        section_id: sectionId,
       }),
     });
     const row = unwrapOne<Row>(payload);
+    if (sectionId && row && str(pick(row, "section_id")) !== sectionId) {
+      throw new InputError(
+        "The other changes were saved, but MES did not move the machine: this MES cannot move machines between shop floors yet (iag-mes#11).",
+        409,
+      );
+    }
     return row ? withMeta(assetToRecord(row), id) : null;
   },
 };

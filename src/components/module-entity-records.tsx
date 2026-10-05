@@ -546,7 +546,7 @@ function projectManagerSelectOptions(): { value: string; label: string; meta?: s
 }
 
 /** Machines registered under Production → Machines (work-centers store). */
-function workCenterSelectOptions(typeFilter?: RegExp): {
+function workCenterSelectOptions(typeFilter?: RegExp, factory?: string): {
   value: string;
   label: string;
   meta?: string;
@@ -554,6 +554,9 @@ function workCenterSelectOptions(typeFilter?: RegExp): {
   const options: { value: string; label: string; meta?: string }[] = [];
   for (const row of loadRecords("production", "work-centers")) {
     if (statusMatchesInactive(row)) continue;
+    // Viewing one factory, a work order or a downtime log there can only be
+    // about one of its machines.
+    if (factory && (row.plantCode || "").trim() && (row.plantCode || "").trim() !== factory) continue;
     const type = (row.type || "").trim();
     if (typeFilter && type && !typeFilter.test(type)) continue;
     // The asset tag, not the name: MES joins work orders, downtime and PM
@@ -565,7 +568,7 @@ function workCenterSelectOptions(typeFilter?: RegExp): {
     options.push({
       value,
       label: name && name !== value ? `${name} (${value})` : value,
-      meta: [type, row.section || row.location].filter(Boolean).join(" · ") || undefined,
+      meta: [type, [row.plantCode, row.section].filter(Boolean).join(" / ")].filter(Boolean).join(" · ") || undefined,
     });
   }
   return options.sort((a, b) => a.label.localeCompare(b.label));
@@ -588,6 +591,14 @@ const MAINTENANCE_RECORD_PICKERS: Record<
     empty: string;
     /** Accept a typed value that is not in the list. */
     allowCustom?: boolean;
+    /**
+     * Another picker on the same form this one narrows by: a shop floor is
+     * offered only within the factory already chosen, because section codes
+     * are unique per factory and "roasting" at two factories is two floors.
+     */
+    dependsOn?: string;
+    belongsTo?: (row: ManagerRecord) => string;
+    dependsOnEmpty?: string;
     option: (row: ManagerRecord) => { value: string; label: string; meta?: string } | null;
   }
 > = {
@@ -646,24 +657,51 @@ MAINTENANCE_RECORD_PICKERS.assignee = technicianPicker(["work-orders"]);
 MAINTENANCE_RECORD_PICKERS.technician = technicianPicker(["batch-records"]);
 MAINTENANCE_RECORD_PICKERS.supervisor = technicianPicker(["work-centers"]);
 MAINTENANCE_RECORD_PICKERS.reportedBy = technicianPicker(["downtime-logs"]);
-// MES plants, for an energy reading: the meter's plant code.
+// MES plants — factories: where a machine stands, which factory a shop floor
+// belongs to, and the meter an energy reading came from.
 MAINTENANCE_RECORD_PICKERS.plantCode = {
-  on: ["energy"],
+  on: ["energy", "work-centers", "sections"],
   entity: "plants",
-  placeholder: "Select plant…",
-  empty: "No plants in MES yet.",
+  placeholder: "Select factory…",
+  empty: "No factories yet — add one under Factories.",
   option: (row: ManagerRecord) => {
     const value = (row.code || "").trim();
     if (!value || /inactive/i.test(row.status || "")) return null;
-    return { value, label: row.name ? `${row.name} (${value})` : value, meta: row.region || undefined };
+    return {
+      value,
+      label: row.name ? `${row.name} (${value})` : value,
+      meta: [row.city, row.district].filter(Boolean).join(", ") || row.region || undefined,
+    };
+  },
+};
+// MES sections — the shop floor a machine stands on, within its factory.
+MAINTENANCE_RECORD_PICKERS.section = {
+  on: ["work-centers"],
+  entity: "sections",
+  placeholder: "Select shop floor…",
+  empty: "No shop floors in this factory yet — add one under Shop Floors.",
+  dependsOn: "plantCode",
+  dependsOnEmpty: "Pick the factory first.",
+  belongsTo: (row: ManagerRecord) => (row.plantCode || "").trim(),
+  option: (row: ManagerRecord) => {
+    const value = (row.code || "").trim();
+    if (!value) return null;
+    return {
+      value,
+      label: row.name && row.name !== value ? `${row.name} (${value})` : value,
+      meta: row.lineType || undefined,
+    };
   },
 };
 
-function maintenanceRecordOptions(fieldKey: string) {
+function maintenanceRecordOptions(fieldKey: string, values: Record<string, string> = {}) {
   const picker = MAINTENANCE_RECORD_PICKERS[fieldKey];
   if (!picker) return [];
+  const parent = picker.dependsOn ? (values[picker.dependsOn] || "").trim() : "";
+  if (picker.dependsOn && !parent) return [];
   const out: { value: string; label: string; meta?: string; searchText: string }[] = [];
   for (const row of loadRecords("production", picker.entity)) {
+    if (parent && picker.belongsTo && picker.belongsTo(row) !== parent) continue;
     const opt = picker.option(row);
     if (opt) out.push({ ...opt, searchText: `${opt.label} ${opt.meta || ""}` });
   }
@@ -2726,6 +2764,8 @@ const MES_MAINTENANCE_ENTITIES = new Set([
   "recommendations",
   "energy",
   "machine-performance",
+  "plants",
+  "sections",
 ]);
 
 function supportsSaveAsDraft(entityKey: string) {
@@ -2939,10 +2979,20 @@ function RecordFormModal({
   );
   const [roasterValue, setRoasterValue] = useState(() => state?.record?.roaster || "");
   const [lineValue, setLineValue] = useState(() => state?.record?.line || "");
+  const factoryInScope = (useSearchParams().get(FACTORY_PARAM) || "").trim();
   const [maintenancePickers, setMaintenancePickers] = useState<Record<string, string>>(() => {
     const out: Record<string, string> = {};
     for (const [key, picker] of Object.entries(MAINTENANCE_RECORD_PICKERS)) {
       if (picker.on.includes(definition.key) && state?.record?.[key]) out[key] = state.record[key];
+    }
+    // Viewing one factory, a new machine, shop floor or reading starts there.
+    if (
+      state?.mode === "create" &&
+      factoryInScope &&
+      !out.plantCode &&
+      MAINTENANCE_RECORD_PICKERS.plantCode?.on.includes(definition.key)
+    ) {
+      out.plantCode = factoryInScope;
     }
     return out;
   });
@@ -5017,8 +5067,16 @@ function RecordFormModal({
               if (MAINTENANCE_RECORD_PICKERS[field.key]?.on.includes(definition.key)) {
                 void staffListsTick;
                 const picker = MAINTENANCE_RECORD_PICKERS[field.key]!;
-                const current = maintenancePickers[field.key] || value;
-                const pickerOptions = maintenanceRecordOptions(field.key);
+                const current =
+                  field.key in maintenancePickers ? maintenancePickers[field.key] : value;
+                const parentValue = picker.dependsOn
+                  ? (picker.dependsOn in maintenancePickers
+                      ? maintenancePickers[picker.dependsOn]
+                      : state?.record?.[picker.dependsOn] || "")
+                  : "";
+                const pickerOptions = maintenanceRecordOptions(field.key, {
+                  ...(picker.dependsOn ? { [picker.dependsOn]: parentValue } : {}),
+                });
                 if (current && !pickerOptions.some((o) => o.value === current)) {
                   pickerOptions.unshift({
                     value: current,
@@ -5046,9 +5104,22 @@ function RecordFormModal({
                       options={pickerOptions}
                       placeholder={picker.placeholder}
                       searchPlaceholder={picker.placeholder}
-                      emptyText={picker.empty}
+                      emptyText={picker.dependsOn && !parentValue ? picker.dependsOnEmpty || picker.empty : picker.empty}
                       onChange={(next) => {
-                        setMaintenancePickers((prev) => ({ ...prev, [field.key]: next }));
+                        setMaintenancePickers((prev) => {
+                          const out = { ...prev, [field.key]: next };
+                          // A new factory empties the shop floor chosen in the old one.
+                          for (const [key, child] of Object.entries(MAINTENANCE_RECORD_PICKERS)) {
+                            if (child.dependsOn === field.key && child.on.includes(definition.key)) {
+                              const kept = (out[key] ?? state?.record?.[key] ?? "").trim();
+                              const stillThere = maintenanceRecordOptions(key, { [field.key]: next }).some(
+                                (o) => o.value === kept,
+                              );
+                              if (!stillThere) out[key] = "";
+                            }
+                          }
+                          return out;
+                        });
                         setStaffListsTick((n) => n + 1);
                       }}
                       className="w-full"
@@ -5074,9 +5145,11 @@ function RecordFormModal({
                     : field.key === "line"
                       ? /packag/i
                       : undefined;
-                const options = workCenterSelectOptions(typeFilter);
+                const options = workCenterSelectOptions(typeFilter, factoryInScope);
                 // Fall back to all machines when the typed filter has none yet.
-                const effective = options.length ? options : workCenterSelectOptions();
+                const effective = options.length
+                  ? options
+                  : workCenterSelectOptions(undefined, factoryInScope);
                 const pickerOptions = effective.map((opt) => ({
                   value: opt.value,
                   label: opt.label,

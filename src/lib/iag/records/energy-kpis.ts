@@ -242,27 +242,3 @@ export const energy: RecordAdapter = {
     return rows.find((r) => r.id === plant) || null;
   },
 };
-
-/** MES plants, for the energy form's plant picker. Read-only. */
-export const plants: RecordAdapter = {
-  service: "mes",
-  resource: "/api/v1/plants",
-  readOnly: true,
-  async list() {
-    const rows = unwrapList<Row>(await gatewayFetch({ service: "mes", path: "/api/v1/plants" }));
-    return rows.map((row) =>
-      withMeta(
-        {
-          id: str(pick(row, "code")),
-          code: str(pick(row, "code")),
-          name: str(pick(row, "name")),
-          region: str(pick(row, "region")),
-          status: str(pick(row, "status")) === "inactive" ? "Inactive" : "Active",
-          createdAt: str(pick(row, "created_at")),
-          updatedAt: str(pick(row, "updated_at")),
-        },
-        str(pick(row, "code")),
-      ),
-    );
-  },
-};

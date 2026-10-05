@@ -21,6 +21,8 @@ import {
   ClipboardTick,
   Coffee,
   Cpu,
+  Buildings2,
+  Grid6,
   DocumentText,
   FolderOpen,
   Hierarchy2,
@@ -99,6 +101,8 @@ export const moduleIcons: Record<ModuleSlug, Icon> = {
 export const SIDEBAR_ITEM_ICONS: Record<string, Icon> = {
   "Production Plans": Calendar,
   "Production Orders": TaskSquare,
+  "Factories": Buildings2,
+  "Shop Floors": Grid6,
   "Machines": Cpu,
   "Work Orders": TaskSquare,
   "Job Cards": ClipboardTick,
