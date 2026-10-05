@@ -1,6 +1,8 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { useAppShell } from "@/components/app-shell";
+import { FACTORY_PARAM, FactoryScopeSelect } from "@/components/factory-scope-select";
 import { NotificationsMenu } from "@/components/notifications-menu";
 import { PageMoreMenu } from "@/components/page-more-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -12,7 +14,7 @@ import { cn } from "@/lib/utils";
 import { Wrench } from "lucide-react";
 import { Menu } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMounted } from "@/hooks/use-mounted";
 
 function greeting(ready = true) {
@@ -52,51 +54,71 @@ export default function MaintenanceDashboardPage() {
     }
   }, [tick, hydrated]);
 
-  const orders = useMemo(() => {
-    if (!hydrated) return [];
-    void tick;
-    try {
-      return loadRecords("production", "work-orders");
-    } catch {
-      return [];
-    }
-  }, [tick, hydrated]);
+  // The factory the header picker put in the URL. Absent means every factory,
+  // which is what these figures summed before there was a picker.
+  const searchParams = useSearchParams();
+  const factory = (searchParams.get(FACTORY_PARAM) || "").trim();
+
   const machines = useMemo(() => {
     if (!hydrated) return [];
     void tick;
     try {
-      return loadRecords("production", "work-centers");
+      const all = loadRecords("production", "work-centers");
+      return factory ? all.filter((m) => String(m.plantCode ?? "").trim() === factory) : all;
     } catch {
       return [];
     }
-  }, [tick, hydrated]);
-  const schedules = useMemo(() => {
-    if (!hydrated) return [];
+  }, [tick, hydrated, factory]);
+
+  /**
+   * machine tag -> factory, so the rest can be narrowed.
+   *
+   * A work order, a PM schedule and a downtime event all name a machine rather
+   * than a factory; the machine knows where it stands. Built from the full
+   * register, not the narrowed one, so the lookup still answers for machines
+   * outside the scope.
+   */
+  const factoryOfMachine = useMemo(() => {
+    const out = new Map<string, string>();
+    if (!hydrated) return out;
     void tick;
     try {
-      return loadRecords("production", "pm-schedules");
+      for (const m of loadRecords("production", "work-centers")) {
+        const tag = String(m.code ?? m.id ?? "").trim();
+        const plant = String(m.plantCode ?? "").trim();
+        if (tag && plant) out.set(tag, plant);
+      }
     } catch {
-      return [];
+      /* no register yet */
     }
+    return out;
   }, [tick, hydrated]);
-  const parts = useMemo(() => {
-    if (!hydrated) return [];
-    void tick;
-    try {
-      return loadRecords("production", "spare-parts");
-    } catch {
-      return [];
-    }
-  }, [tick, hydrated]);
-  const downtime = useMemo(() => {
-    if (!hydrated) return [];
-    void tick;
-    try {
-      return loadRecords("production", "downtime-logs");
-    } catch {
-      return [];
-    }
-  }, [tick, hydrated]);
+
+  /** Load a collection, narrowed to the factory through each row's machine. */
+  const loadScoped = useCallback(
+    (entity: string) => {
+      if (!hydrated) return [] as ManagerRecord[];
+      void tick;
+      try {
+        const all = loadRecords("production", entity);
+        if (!factory) return all;
+        return all.filter((r) => {
+          const machine = String(r.workCenter ?? "").trim();
+          // A row naming no machine cannot be placed, so it is left out rather
+          // than counted at every factory.
+          return machine ? factoryOfMachine.get(machine) === factory : false;
+        });
+      } catch {
+        return [] as ManagerRecord[];
+      }
+    },
+    [tick, hydrated, factory, factoryOfMachine],
+  );
+
+  const orders = useMemo(() => loadScoped("work-orders"), [loadScoped]);
+  const schedules = useMemo(() => loadScoped("pm-schedules"), [loadScoped]);
+  const parts = useMemo(() => loadScoped("spare-parts"), [loadScoped]);
+  const downtime = useMemo(() => loadScoped("downtime-logs"), [loadScoped]);
 
   const openOrders = orders.filter(isOpen);
   const stopped = machines.filter((row) => /down|maintenance/i.test(String(row.status || "")));
@@ -128,6 +150,8 @@ export default function MaintenanceDashboardPage() {
           </h1>
           <p className="truncate text-xs text-slate-500">Maintenance — machines, work orders, and downtime</p>
         </div>
+        {/* Which factory this overview is about. */}
+        <FactoryScopeSelect />
         <NotificationsMenu />
         <ThemeToggle />
         <PageMoreMenu />

@@ -7932,6 +7932,24 @@ function EntityRecordsWorkspace({
     [],
   );
 
+  /**
+   * machine tag -> the factory it stands in, from the machine register this
+   * app already loads. Records here name a machine, not a factory.
+   */
+  const factoryOfMachine = useMemo(() => {
+    const out = new Map<string, string>();
+    try {
+      for (const machine of loadRecords("production", "work-centers")) {
+        const tag = String(machine.code ?? machine.id ?? "").trim();
+        const plant = String(machine.plantCode ?? "").trim();
+        if (tag && plant) out.set(tag, plant);
+      }
+    } catch {
+      /* no register loaded yet — the scope then narrows nothing */
+    }
+    return out;
+  }, [accessTick]);
+
   const [scopeFilter, setScopeFilter] = useState<Record<string, string>>({});
 
   const scopeOptions = useMemo(() => {
@@ -7983,9 +8001,18 @@ function EntityRecordsWorkspace({
     const accountParam = (searchParams.get("account") || "").trim().toLowerCase();
     const factoryScope = (searchParams.get(FACTORY_PARAM) || "").trim();
     let result = displayRecords.filter((record) => {
-      // Entities with no factory of their own are unaffected by the scope.
-      if (factoryScope && record.plantCode !== undefined) {
-        if (String(record.plantCode ?? "").trim() !== factoryScope) return false;
+      if (factoryScope) {
+        const own = String(record.plantCode ?? "").trim();
+        if (record.plantCode !== undefined) {
+          if (own !== factoryScope) return false;
+        } else if (record.workCenter !== undefined) {
+          // Almost nothing in this app carries a factory of its own — a work
+          // order, a PM schedule, a downtime event all name a machine, and the
+          // machine knows where it stands. Resolving through the register is
+          // what makes the scope mean anything here.
+          const machine = String(record.workCenter ?? "").trim();
+          if (machine && factoryOfMachine.get(machine) !== factoryScope) return false;
+        }
       }
       for (const [field, value] of Object.entries(scopeFilter)) {
         if (!value || value === "all") continue;
