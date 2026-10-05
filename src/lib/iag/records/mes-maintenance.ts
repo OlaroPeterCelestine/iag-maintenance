@@ -836,6 +836,11 @@ function assetToRecord(row: Row): Omit<AppRecord, "id"> & { id?: string } {
     code: str(pick(row, "tag")),
     type: str(pick(row, "category")),
     section: str(pick(row, "section_code")),
+    // The factory this machine stands in, on its own. `location` coalesces
+    // three columns and so cannot be compared with a factory code; the factory
+    // scope needs an unambiguous one, and every other record in this app
+    // reaches its factory through its machine.
+    plantCode: str(pick(row, "plant_code")),
     location: str(pick(row, "location", "plant_code", "section_code")),
     criticality: CRITICALITY_TO_APP[str(pick(row, "criticality"))] || "",
     status: assetStatusForApp(str(pick(row, "status"))) || "Idle",
