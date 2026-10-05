@@ -32,6 +32,7 @@ import {
   type AppRecord,
   type RecordAction,
   type RecordAdapter,
+  InputError,
 } from "@/lib/iag/records/types";
 
 type Row = Record<string, unknown>;
@@ -330,7 +331,7 @@ export const workOrders: RecordAdapter = {
   async create(_ctx, record) {
     const assetTag = str(record.workCenter).trim();
     if (!assetTag) {
-      throw new Error("Pick the machine this work order is for.");
+      throw new InputError("Pick the machine this work order is for.");
     }
     const woType = snakeCase(record.woType) || "corrective";
     const payload = await gatewayFetch({
@@ -451,10 +452,10 @@ async function writeJobCard(
   mode: "create" | "update",
 ): Promise<AppRecord | null> {
   const current = await getWorkOrder(num);
-  if (!current) throw new Error(`Work order ${num} was not found in MES.`);
+  if (!current) throw new InputError(`Work order ${num} was not found in MES.`, 404);
   const existing = attrs(current).job_card;
   if (mode === "create" && existing && typeof existing === "object") {
-    throw new Error(`Work order ${num} already has a job card — open it and edit it instead.`);
+    throw new InputError(`Work order ${num} already has a job card — open it and edit it instead.`);
   }
   const merged: Record<string, unknown> = {
     ...(existing && typeof existing === "object" ? (existing as Row) : {}),
@@ -495,7 +496,7 @@ export const jobCards: RecordAdapter = {
 
   async create(_ctx, record) {
     const num = str(record.workOrder || record.reference).trim();
-    if (!num) throw new Error("Pick the work order this job card is for.");
+    if (!num) throw new InputError("Pick the work order this job card is for.");
     return writeJobCard(num, record, "create");
   },
 
@@ -559,7 +560,7 @@ export const pmTemplates: RecordAdapter = {
     if (record.code !== undefined) {
       const current = (await listTemplates()).find((t) => str(pick(t, "id")) === id);
       if (current && str(record.code).trim().toLowerCase() !== str(pick(current, "code")).toLowerCase()) {
-        throw new Error("A template's code is fixed. Create a new template for a new code.");
+        throw new InputError("A template's code is fixed. Create a new template for a new code.");
       }
     }
     const payload = await gatewayFetch({
@@ -645,12 +646,12 @@ export const pmSchedules: RecordAdapter = {
 
   async create(_ctx, record) {
     const assetTag = str(record.workCenter).trim();
-    if (!assetTag) throw new Error("Pick the machine this schedule is for.");
+    if (!assetTag) throw new InputError("Pick the machine this schedule is for.");
     const templates = await listTemplates();
     const template = resolveTemplate(templates, str(record.template));
     if (!template) {
       const known = templates.map((t) => str(pick(t, "code"))).filter(Boolean);
-      throw new Error(
+      throw new InputError(
         known.length
           ? `No PM template "${record.template}". Known templates: ${known.join(", ")}.`
           : "Create a PM template first — a schedule puts a template on a machine.",
@@ -690,13 +691,13 @@ export const pmSchedules: RecordAdapter = {
       const machineChanged =
         record.workCenter !== undefined && str(record.workCenter).trim() !== str(pick(current || {}, "asset_tag"));
       if (current && (templateChanged || machineChanged)) {
-        throw new Error(
+        throw new InputError(
           "A schedule's template and machine are fixed. Add a new schedule for a different pair.",
         );
       }
     }
     const nextDue = plantInstant(record.nextDue, "06:00");
-    if (!nextDue) throw new Error("Give the schedule a next due date.");
+    if (!nextDue) throw new InputError("Give the schedule a next due date.");
     const [payload] = await Promise.all([
       gatewayFetch({
         service: "mes",
@@ -870,7 +871,7 @@ export async function resolveSectionId(record: AppRecord): Promise<string> {
   const payload = await gatewayFetch({ service: "mes", path: "/api/v1/sections" });
   const sections = unwrapList<Row>(payload);
   if (!sections.length) {
-    throw new Error("Create a plant section in MES before registering a machine.");
+    throw new InputError("Create a plant section in MES before registering a machine.");
   }
   const wanted = str(record.section || record.location).trim().toLowerCase();
   const match = wanted
@@ -884,7 +885,7 @@ export async function resolveSectionId(record: AppRecord): Promise<string> {
     const known = sections
       .map((row) => [str(pick(row, "code")), str(pick(row, "name"))].filter(Boolean).join(" — "))
       .join("; ");
-    throw new Error(
+    throw new InputError(
       wanted
         ? `No plant section "${record.section || record.location}". Sections: ${known}.`
         : `Say which plant section the machine is in. Sections: ${known}.`,
@@ -916,7 +917,7 @@ export const assets: RecordAdapter = {
 
   async create(_ctx, record) {
     const tag = assetTag(record);
-    if (!tag) throw new Error("Give the machine an asset code.");
+    if (!tag) throw new InputError("Give the machine an asset code.");
     const sectionId = await resolveSectionId(record);
     const payload = await gatewayFetch({
       service: "mes",
@@ -951,12 +952,12 @@ export const assets: RecordAdapter = {
    */
   async update(_ctx, id, record) {
     const current = await getAsset(id);
-    if (!current) throw new Error(`Machine ${id} was not found in MES.`);
+    if (!current) throw new InputError(`Machine ${id} was not found in MES.`, 404);
     if (
       record.criticality !== undefined &&
       (criticalityForService(record.criticality) || "") !== str(pick(current, "criticality"))
     ) {
-      throw new Error(
+      throw new InputError(
         "Criticality is set when a machine is registered; MES has no edit for it yet.",
       );
     }
@@ -964,7 +965,7 @@ export const assets: RecordAdapter = {
       record.section !== undefined &&
       str(record.section).trim().toLowerCase() !== str(pick(current, "section_code")).toLowerCase()
     ) {
-      throw new Error("A machine's plant section is set when it is registered.");
+      throw new InputError("A machine's plant section is set when it is registered.");
     }
     let mergedAttrs: Record<string, unknown> | undefined;
     if (record.supervisor !== undefined || record.notes !== undefined) {

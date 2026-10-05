@@ -18,8 +18,8 @@
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { adapterEnabled } from "@/lib/iag/config";
-import { GatewayError } from "@/lib/iag/gateway";
 import { legacyProxy } from "@/lib/iag/legacy";
+import { recordFailure } from "@/lib/iag/records/failure";
 import { adapterFor } from "@/lib/iag/records/registry";
 import type { AdapterContext } from "@/lib/iag/records/types";
 import { resolvePrincipal } from "@/lib/server-jwt";
@@ -30,17 +30,6 @@ export const runtime = "nodejs";
 type Params = {
   params: Promise<{ module: string; entity: string; id: string; action: string }>;
 };
-
-function failure(err: unknown) {
-  if (err instanceof GatewayError) {
-    return NextResponse.json(
-      { ok: false, error: err.message },
-      { status: err.status >= 500 ? 502 : err.status },
-    );
-  }
-  const message = err instanceof Error ? err.message : "Unexpected error";
-  return NextResponse.json({ ok: false, error: message }, { status: 500 });
-}
 
 export async function POST(request: NextRequest, { params }: Params) {
   // With the adapter off this path belongs to the legacy API, which has its own
@@ -77,6 +66,6 @@ export async function POST(request: NextRequest, { params }: Params) {
     const record = await verb.run(ctx, id);
     return NextResponse.json({ ok: true, data: record });
   } catch (err) {
-    return failure(err);
+    return recordFailure(err);
   }
 }

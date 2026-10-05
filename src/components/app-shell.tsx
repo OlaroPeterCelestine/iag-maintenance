@@ -144,6 +144,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   /** First Postgres hydrate finished — keep shimmer until then so refresh never flashes empty tables. */
   const [bootReady, setBootReady] = useState(false);
   const optimisticBooted = useRef(false);
+  // Who the shell last booted for — a same-user session refresh must not reboot.
+  const bootedUserId = useRef<string | null>(null);
   const active = useMemo(() => activeFromPath(pathname), [pathname]);
 
   // Close mobile drawer only — desktop sticky sidebar must not re-layout on every route.
@@ -202,16 +204,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   // When identity changes in-tab (AUTH_CHANGED), reset boot so the new user
-  // gets a fresh hydrate instead of the previous person's rows.
+  // gets a fresh hydrate instead of the previous person's rows. The session
+  // restore rewrites the same user's session (and fires the event) a few
+  // seconds after load; rebooting then swapped the page for the skeleton and
+  // remounted it, closing any form the user had already opened.
   useEffect(() => {
+    bootedUserId.current = readAuthSession()?.userId ?? null;
     const onAuth = () => {
       const session = readAuthSession();
       if (!session?.userId) {
+        bootedUserId.current = null;
         setBootReady(false);
         setAllowed(false);
         return;
       }
-      setBootReady(false);
+      const userId = String(session.userId);
+      if (bootedUserId.current !== userId) {
+        bootedUserId.current = userId;
+        setBootReady(false);
+      }
       try {
         loadRoles();
       } catch {
@@ -360,7 +371,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           /* ignore */
         }
       } finally {
-        if (!cancelled) setBootReady(true);
+        if (!cancelled) {
+          bootedUserId.current = readAuthSession()?.userId ?? bootedUserId.current;
+          setBootReady(true);
+        }
       }
     }
 

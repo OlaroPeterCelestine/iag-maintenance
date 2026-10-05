@@ -16,6 +16,7 @@ import {
   str,
   type AppRecord,
   type RecordAdapter,
+  InputError,
 } from "@/lib/iag/records/types";
 
 type Row = Record<string, unknown>;
@@ -47,7 +48,7 @@ function num(value: unknown): number | undefined {
   const raw = str(value).trim();
   if (!raw) return undefined;
   const n = Number(raw);
-  if (!Number.isFinite(n)) throw new Error(`"${raw}" is not a number.`);
+  if (!Number.isFinite(n)) throw new InputError(`"${raw}" is not a number.`);
   return n;
 }
 
@@ -72,7 +73,7 @@ function daysAgo(n: number): string {
 function oneOf(value: unknown, set: string[], label: string): string | undefined {
   const v = snake(value);
   if (!v) return undefined;
-  if (!set.includes(v)) throw new Error(`${label} must be one of: ${set.map(titleCase).join(", ")}.`);
+  if (!set.includes(v)) throw new InputError(`${label} must be one of: ${set.map(titleCase).join(", ")}.`);
   return v;
 }
 
@@ -220,8 +221,8 @@ export const energy: RecordAdapter = {
   async create(_ctx, record) {
     const plant = str(record.plantCode).trim();
     const kwh = num(record.kwh);
-    if (!plant) throw new Error("Pick the plant the meter is at.");
-    if (kwh === undefined || kwh <= 0) throw new Error("kWh must be a positive number.");
+    if (!plant) throw new InputError("Pick the plant the meter is at.");
+    if (kwh === undefined || kwh <= 0) throw new InputError("kWh must be a positive number.");
     const band = oneOf(record.tariffBand || "standard", TARIFF_BANDS, "Tariff band") || "standard";
     const day = str(record.date).trim() || plantDate(new Date().toISOString());
     const time = /^\d{1,2}:\d{2}$/.test(str(record.time).trim()) ? str(record.time).trim().padStart(5, "0") : "12:00";
