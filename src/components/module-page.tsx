@@ -1,5 +1,6 @@
 "use client";
 
+import { FactoryScopeSelect } from "@/components/factory-scope-select";
 import { useAppShell } from "@/components/app-shell";
 import { SegmentTabList, segmentTabClass } from "@/components/segment-tabs";
 import { NotificationsMenu } from "@/components/notifications-menu";
@@ -227,7 +228,11 @@ function ModulePageContent({ config }: { config: ModuleConfig }) {
               Back to Bank &amp; Cash Accounts
             </Link>
           ) : null}
-          <h1 className="text-[22px] font-semibold tracking-tight text-slate-900">{pageTitle}</h1>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h1 className="text-[22px] font-semibold tracking-tight text-slate-900">{pageTitle}</h1>
+            {/* Which factory you are standing in. Module-wide, not per table. */}
+            <FactoryScopeSelect />
+          </div>
           {pageDescription ? (
             <p className="mt-1 text-[13px] text-slate-500">{pageDescription}</p>
           ) : null}

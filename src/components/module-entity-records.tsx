@@ -363,6 +363,7 @@ import {
 import { RequestOutcomeBanner } from "@/components/request-outcome-banner";
 import { DualMoney } from "@/components/dual-money";
 import { DivisionSelect } from "@/components/division-select";
+import { FACTORY_PARAM } from "@/components/factory-scope-select";
 import { SupplierCategorySelect } from "@/components/supplier-category-select";
 import { InvoicePaymentDialog } from "@/components/party-ledger-panel";
 import { SearchablePicker } from "@/components/searchable-picker";
@@ -7629,6 +7630,7 @@ function EntityRecordsWorkspace({
   const clearListFilters = (options?: { keepAccount?: boolean }) => {
     setQuery("");
     setStatusFilter("all");
+    setScopeFilter({});
     setKindFilter("all");
     setAllocationFilter("all");
     const params = new URLSearchParams(searchParams.toString());
@@ -7780,6 +7782,7 @@ function EntityRecordsWorkspace({
     }
     setQuery(q || account);
     setStatusFilter("all");
+    setScopeFilter({});
     setKindFilter("all");
   }, [definition.key, config.slug, searchParams]);
 
@@ -7905,6 +7908,46 @@ function EntityRecordsWorkspace({
     if (next.length !== records.length) void replaceAllAsync(next);
   }, [definition.key, ready, records, replaceAllAsync]);
 
+  /**
+   * Where a record sits: which shop floor, which shift, which machine. Nine of
+   * this app's entities carry at least one, and most carry only the machine,
+   * so a list of every downtime event at every factory could previously only
+   * be narrowed by typing into search.
+   *
+   * The factory is not here: it is where you are standing, not a property of
+   * this list, so it lives in the page header and arrives as a URL parameter.
+   * These three narrow within it.
+   *
+   * Options come from the rows themselves rather than a per-entity config, so
+   * a filter appears exactly when there is something to filter by, and a new
+   * entity carrying one of these fields gets it without being listed here.
+   */
+  const SCOPE_FILTERS = useMemo(
+    () =>
+      [
+        { field: "section", label: "shop floor", all: "All shop floors" },
+        { field: "shiftName", label: "shift", all: "All shifts" },
+        { field: "workCenter", label: "machine", all: "All machines" },
+      ] as const,
+    [],
+  );
+
+  const [scopeFilter, setScopeFilter] = useState<Record<string, string>>({});
+
+  const scopeOptions = useMemo(() => {
+    const out: Record<string, string[]> = {};
+    for (const { field } of SCOPE_FILTERS) {
+      const set = new Set<string>();
+      for (const record of displayRecords) {
+        const value = String(record[field] ?? "").trim();
+        if (value) set.add(value);
+      }
+      // One distinct value filters nothing — every row would survive it.
+      if (set.size > 1) out[field] = Array.from(set).sort((a, b) => a.localeCompare(b));
+    }
+    return out;
+  }, [SCOPE_FILTERS, displayRecords]);
+
   const statusOptions = useMemo(() => {
     const set = new Set<string>();
     for (const record of displayRecords) {
@@ -7938,7 +7981,16 @@ function EntityRecordsWorkspace({
     const tokens = normalized ? normalized.split(/\s+/).filter(Boolean) : [];
     const moneyEntity = definition.key === "receipts" || definition.key === "payments";
     const accountParam = (searchParams.get("account") || "").trim().toLowerCase();
+    const factoryScope = (searchParams.get(FACTORY_PARAM) || "").trim();
     let result = displayRecords.filter((record) => {
+      // Entities with no factory of their own are unaffected by the scope.
+      if (factoryScope && record.plantCode !== undefined) {
+        if (String(record.plantCode ?? "").trim() !== factoryScope) return false;
+      }
+      for (const [field, value] of Object.entries(scopeFilter)) {
+        if (!value || value === "all") continue;
+        if (String(record[field] ?? "").trim() !== value) return false;
+      }
       if (statusFilter !== "all") {
         const status = (record.status || "").trim();
         if (status.toLowerCase() !== statusFilter.toLowerCase()) return false;
@@ -10398,6 +10450,26 @@ function EntityRecordsWorkspace({
                   ))}
                 </select>
               </div>
+            )}
+            {SCOPE_FILTERS.filter(({ field }) => scopeOptions[field]?.length).map(
+              ({ field, label, all }) => (
+                <select
+                  key={field}
+                  value={scopeFilter[field] ?? "all"}
+                  onChange={(event) =>
+                    setScopeFilter((prev) => ({ ...prev, [field]: event.target.value }))
+                  }
+                  className="h-8 rounded-md border border-input bg-white px-2.5 text-[12px] text-slate-700 outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
+                  aria-label={`Filter by ${label}`}
+                >
+                  <option value="all">{all}</option>
+                  {scopeOptions[field].map((value) => (
+                    <option key={value} value={value}>
+                      {value}
+                    </option>
+                  ))}
+                </select>
+              ),
             )}
             {kindOptions.length > 0 && (
               <select
