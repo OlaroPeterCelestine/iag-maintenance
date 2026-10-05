@@ -9,8 +9,8 @@
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { adapterEnabled, unmappedMode } from "@/lib/iag/config";
-import { GatewayError } from "@/lib/iag/gateway";
 import { legacyProxy } from "@/lib/iag/legacy";
+import { recordFailure } from "@/lib/iag/records/failure";
 import { adapterFor } from "@/lib/iag/records/registry";
 import {
   describeActions,
@@ -28,17 +28,6 @@ type Params = { params: Promise<{ module: string; entity: string }> };
 
 function unauthorized() {
   return NextResponse.json({ ok: false, error: "Sign in required" }, { status: 401 });
-}
-
-function failure(err: unknown) {
-  if (err instanceof GatewayError) {
-    return NextResponse.json(
-      { ok: false, error: err.message },
-      { status: err.status >= 500 ? 502 : err.status },
-    );
-  }
-  const message = err instanceof Error ? err.message : "Unexpected error";
-  return NextResponse.json({ ok: false, error: message }, { status: 500 });
 }
 
 /** No IAG owner for this entity — fall back per IAG_UNMAPPED_MODE. */
@@ -104,7 +93,7 @@ export async function GET(request: NextRequest, { params }: Params) {
       { headers: { ETag: revision } },
     );
   } catch (err) {
-    return failure(err);
+    return recordFailure(err);
   }
 }
 
@@ -183,7 +172,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
       applied: result,
     });
   } catch (err) {
-    return failure(err);
+    return recordFailure(err);
   }
 }
 
@@ -261,6 +250,6 @@ export async function POST(request: NextRequest, { params }: Params) {
     const created = await adapter.create(ctx, record);
     return NextResponse.json({ ok: true, data: created }, { status: 201 });
   } catch (err) {
-    return failure(err);
+    return recordFailure(err);
   }
 }

@@ -30,6 +30,7 @@ import {
   type AppRecord,
   type RecordAction,
   type RecordAdapter,
+  InputError,
 } from "@/lib/iag/records/types";
 
 type Row = Record<string, unknown>;
@@ -152,7 +153,7 @@ async function setItemStatus(itemId: string, status: string | undefined, current
   const wanted = snakeCase(status);
   if (!wanted || wanted === current) return;
   if (!ITEM_STATUSES.includes(wanted)) {
-    throw new Error(`Status must be one of: ${ITEM_STATUSES.map(titleCase).join(", ")}.`);
+    throw new InputError(`Status must be one of: ${ITEM_STATUSES.map(titleCase).join(", ")}.`);
   }
   await gatewayFetch({
     service: "warehouse",
@@ -230,7 +231,7 @@ export const spareParts: RecordAdapter = {
   async create(_ctx, record) {
     const sku = str(record.code).trim();
     const name = str(record.name).trim();
-    if (!sku || !name) throw new Error("A spare part needs a part code and a name.");
+    if (!sku || !name) throw new InputError("A spare part needs a part code and a name.");
     const created = unwrapOne<Row>(
       await gatewayFetch({
         service: "warehouse",
@@ -264,9 +265,9 @@ export const spareParts: RecordAdapter = {
    */
   async update(_ctx, id, record) {
     const current = await getItem(id);
-    if (!current) throw new Error("That spare part no longer exists in the warehouse.");
+    if (!current) throw new InputError("That spare part no longer exists in the warehouse.", 404);
     if (str(pick(current, "material_class")) !== "spare_part") {
-      throw new Error("That item is not a spare part; edit it in the Inventory app.");
+      throw new InputError("That item is not a spare part; edit it in the Inventory app.");
     }
     const touchesAttrs = SPARE_ATTR_FIELDS.some((key) => record[key] !== undefined);
     const mergedAttrs = touchesAttrs

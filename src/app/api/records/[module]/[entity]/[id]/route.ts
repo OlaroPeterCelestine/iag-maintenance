@@ -1,8 +1,8 @@
 /** /api/records/:module/:entity/:id — single-record verbs. */
 import { NextResponse, type NextRequest } from "next/server";
 import { adapterEnabled, unmappedMode } from "@/lib/iag/config";
-import { GatewayError } from "@/lib/iag/gateway";
 import { legacyProxy } from "@/lib/iag/legacy";
+import { recordFailure } from "@/lib/iag/records/failure";
 import { adapterFor } from "@/lib/iag/records/registry";
 import type { AdapterContext, AppRecord } from "@/lib/iag/records/types";
 import { resolvePrincipal } from "@/lib/server-jwt";
@@ -13,17 +13,6 @@ export const runtime = "nodejs";
 type Params = {
   params: Promise<{ module: string; entity: string; id: string }>;
 };
-
-function failure(err: unknown) {
-  if (err instanceof GatewayError) {
-    return NextResponse.json(
-      { ok: false, error: err.message },
-      { status: err.status >= 500 ? 502 : err.status },
-    );
-  }
-  const message = err instanceof Error ? err.message : "Unexpected error";
-  return NextResponse.json({ ok: false, error: message }, { status: 500 });
-}
 
 async function resolve(request: NextRequest, params: Params["params"]) {
   const { module, entity, id } = await params;
@@ -60,7 +49,7 @@ export async function GET(request: NextRequest, { params }: Params) {
     }
     return NextResponse.json({ ok: true, data: found });
   } catch (err) {
-    return failure(err);
+    return recordFailure(err);
   }
 }
 
@@ -83,7 +72,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     const updated = await adapter.update(ctx, id, patch);
     return NextResponse.json({ ok: true, data: updated });
   } catch (err) {
-    return failure(err);
+    return recordFailure(err);
   }
 }
 
@@ -115,6 +104,6 @@ export async function DELETE(request: NextRequest, { params }: Params) {
     await adapter.remove(ctx, id);
     return NextResponse.json({ ok: true });
   } catch (err) {
-    return failure(err);
+    return recordFailure(err);
   }
 }

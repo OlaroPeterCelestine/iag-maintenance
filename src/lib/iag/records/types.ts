@@ -244,3 +244,24 @@ export function omitEmpty(
   }
   return out;
 }
+
+/**
+ * Something the person filling in the form can fix.
+ *
+ * An adapter that threw a plain Error reached the records route's `failure()`,
+ * which has no way to tell "latitude must be between -90 and 90" from a null
+ * dereference, so it answered 500. The persist layer retries a 5xx five times
+ * and then reports a generic "could not save to the database" — so the clearer
+ * the message an adapter wrote, the more certainly nobody ever read it.
+ *
+ * Throwing this instead carries the status, and the message reaches the form.
+ */
+export class InputError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status = 400) {
+    super(message);
+    this.name = "InputError";
+    this.status = status;
+  }
+}
