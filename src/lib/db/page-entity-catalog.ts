@@ -4264,12 +4264,33 @@ export const PAGE_ENTITY_CATALOG: PageEntityMeta[] =
     "module": "production",
     "storageModule": "production",
     "entity": "plants",
-    "label": "Plants",
+    "label": "Factories",
     "table": null,
     "columns": [
       "code",
       "name",
-      "region"
+      "address",
+      "city",
+      "district",
+      "country",
+      "latitude",
+      "longitude",
+      "region",
+      "timezone",
+      "status"
+    ]
+  },
+  {
+    "module": "production",
+    "storageModule": "production",
+    "entity": "sections",
+    "label": "Shop Floors",
+    "table": null,
+    "columns": [
+      "plantCode",
+      "code",
+      "name",
+      "lineType"
     ]
   }
 ]

@@ -925,6 +925,8 @@ export const NAV_MODULES: {
     label: "Maintenance",
     href: "/production",
     items: [
+      "Factories",
+      "Shop Floors",
       "Machines",
       "Work Orders",
       "Job Cards",

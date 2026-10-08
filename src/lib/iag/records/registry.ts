@@ -40,7 +40,8 @@ import {
   spareParts,
   technicians,
 } from "@/lib/iag/records/maintenance-extras";
-import { energy, machinePerformance, plants } from "@/lib/iag/records/energy-kpis";
+import { energy, machinePerformance } from "@/lib/iag/records/energy-kpis";
+import { plants, sections } from "@/lib/iag/records/factories";
 import {
   attachmentRefs,
   attachmentsJson,
@@ -432,6 +433,7 @@ export const RECORD_ADAPTERS: Record<string, RecordAdapter> = {
   "production:energy": energy,
   "production:machine-performance": machinePerformance,
   "production:plants": plants,
+  "production:sections": sections,
   // Picker only, no tab: who a work order can be assigned to.
   "production:technicians": technicians,
   // warehouse — spare parts are warehouse items (material_class spare_part)

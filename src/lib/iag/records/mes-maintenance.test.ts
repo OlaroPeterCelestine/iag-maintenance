@@ -66,8 +66,11 @@ beforeEach(() => {
   routes = {
     "/api/v1/sections": {
       items: [
-        { id: "sec-1", code: "MILL", name: "Dry mill" },
-        { id: "sec-2", code: "ROAST", name: "Roastery" },
+        { id: "sec-1", plant_code: "mbale", code: "MILL", name: "Dry mill" },
+        { id: "sec-2", plant_code: "kampala", code: "ROAST", name: "Roastery" },
+        // Section codes are unique per factory only.
+        { id: "sec-3", plant_code: "kampala", code: "PACK", name: "Packaging" },
+        { id: "sec-4", plant_code: "mbale", code: "PACK", name: "Packaging" },
       ],
     },
     "/api/v1/pm-templates": {
@@ -396,7 +399,7 @@ describe("machines", () => {
         ctx,
         record({ name: "Roaster", code: "RST-1", section: "Wet mill", status: "Idle" }),
       ),
-    ).rejects.toThrow(/MILL — Dry mill; ROAST — Roastery/);
+    ).rejects.toThrow(/mbale\/MILL, kampala\/ROAST/);
     expect(writes()).toHaveLength(0);
   });
 
@@ -428,6 +431,77 @@ describe("machines", () => {
       record({ criticality: "C — medium", section: "hulling", notes: "new note" }),
     );
     expect(writes()[0].body!.attrs).toEqual({ supervisor: "Okello", notes: "new note" });
+  });
+
+  it("file a machine on the shop floor of the factory chosen, when two share a code", async () => {
+    await RECORD_ADAPTERS["production:work-centers"].create!(
+      ctx,
+      record({ name: "Filler", code: "FIL-1", plantCode: "mbale", section: "PACK", status: "Idle" }),
+    );
+    expect(writes()[0].body!.section_id).toBe("sec-4");
+  });
+
+  it("ask for the factory rather than guess when a shop floor code is at two", async () => {
+    await expect(
+      RECORD_ADAPTERS["production:work-centers"].create!(
+        ctx,
+        record({ name: "Filler", code: "FIL-1", section: "PACK", status: "Idle" }),
+      ),
+    ).rejects.toThrow(/more than one factory.*kampala\/PACK, mbale\/PACK/);
+    expect(writes()).toHaveLength(0);
+  });
+
+  it("refuse a shop floor that is not in the factory chosen", async () => {
+    await expect(
+      RECORD_ADAPTERS["production:work-centers"].create!(
+        ctx,
+        record({ name: "Roaster", code: "RST-1", plantCode: "mbale", section: "ROAST", status: "Idle" }),
+      ),
+    ).rejects.toThrow(/No shop floor "ROAST" at mbale/);
+  });
+
+  it("move a machine to another shop floor in its factory", async () => {
+    routes["/api/v1/assets/HUL-1"] = { tag: "HUL-1", plant_code: "kampala", section_code: "ROAST", criticality: "C", attrs: {} };
+    await RECORD_ADAPTERS["production:work-centers"].update!(
+      ctx,
+      "HUL-1",
+      record({ plantCode: "kampala", section: "PACK", criticality: "C — medium" }),
+    );
+    expect(writes()[0].body!.section_id).toBe("sec-3");
+  });
+
+  it("move a machine to another factory onto that factory's floor, not the old code's", async () => {
+    routes["/api/v1/assets/HUL-1"] = { tag: "HUL-1", plant_code: "kampala", section_code: "PACK", attrs: {} };
+    await RECORD_ADAPTERS["production:work-centers"].update!(
+      ctx,
+      "HUL-1",
+      record({ plantCode: "mbale", section: "PACK" }),
+    );
+    expect(writes()[0].body!.section_id).toBe("sec-4");
+  });
+
+  it("send no section when the factory and floor come back unchanged", async () => {
+    routes["/api/v1/assets/HUL-1"] = { tag: "HUL-1", plant_code: "kampala", section_code: "PACK", attrs: {} };
+    await RECORD_ADAPTERS["production:work-centers"].update!(
+      ctx,
+      "HUL-1",
+      record({ plantCode: "kampala", section: "pack", name: "Filler 2" }),
+    );
+    expect(writes()[0].body!.section_id).toBeUndefined();
+    // No section lookup either: an unchanged floor costs nothing.
+    expect(calls().some((c) => c.path === "/api/v1/sections")).toBe(false);
+  });
+
+  it("say so when MES saved the edit but did not move the machine", async () => {
+    routes["/api/v1/assets/HUL-1"] = { tag: "HUL-1", plant_code: "kampala", section_code: "ROAST", attrs: {} };
+    mockFetch.mockImplementation((async (req: Call) => {
+      // An MES without iag-mes#11 ignores section_id and echoes the old floor.
+      if (req.method === "PATCH") return { tag: "HUL-1", plant_code: "kampala", section_id: "sec-2", section_code: "ROAST" };
+      return routes[req.path || ""] ?? { items: [] };
+    }) as never);
+    await expect(
+      RECORD_ADAPTERS["production:work-centers"].update!(ctx, "HUL-1", record({ section: "PACK" })),
+    ).rejects.toThrow(/did not move the machine/);
   });
 
   it("say plainly that criticality cannot be edited, instead of dropping it", async () => {

@@ -185,6 +185,15 @@ export function entityKey(label: string) {
   if (lower.includes("pos") && lower.includes("location")) {
     return "pos-locations";
   }
+  // Factories and Shop Floors are the business words for MES plants and
+  // sections. The stored keys stay: plant_code is on every machine and
+  // reading, and the pickers and the adapter registry key on them.
+  if (lower === "factories" || lower === "factory") {
+    return "plants";
+  }
+  if (lower.includes("shop floor")) {
+    return "sections";
+  }
   // "New Project" tab keeps the projects store.
   if (lower === "new project" || lower === "new-project") {
     return "projects";
@@ -409,12 +418,16 @@ function maintenanceFields(value: string): EntityField[] | null {
         ["Crusher", "Mill", "Generator", "Pump", "Conveyor", "Compressor", "Packaging line", "Other"],
         true,
       ),
+      // Where the machine stands: a factory, then a shop floor inside it.
+      // Section codes are unique per factory, so the floor is picked within
+      // the factory chosen above it. Changing either moves the machine.
+      text("plantCode", "Factory", true),
+      text("section", "Shop floor", true),
       {
-        key: "section",
-        label: "Plant section (code)",
-        placeholder: "The MES section code — set when the machine is registered",
+        key: "location",
+        label: "Spot on the floor",
+        placeholder: "Optional — e.g. Bay 3, by the north wall",
       },
-      text("location", "Site / location"),
       // mes_assets.criticality CHECK (A–D). Set on registration only.
       select("criticality", "Criticality", ["A — critical", "B — high", "C — medium", "D — low"]),
       // mes_assets.status CHECK. "Retired" takes a machine out of the pickers.
@@ -592,13 +605,13 @@ function maintenanceFields(value: string): EntityField[] | null {
   }
   if (value === "energy") {
     return [
-      { key: "plantCode", label: "Plant", required: true },
-      { key: "workCenter", label: "Machine (blank: the whole plant's meter)" },
+      { key: "plantCode", label: "Factory", required: true },
+      { key: "workCenter", label: "Machine (blank: the whole factory's meter)" },
       { key: "kwh", label: "kWh", type: "number", required: true },
       select("tariffBand", "Tariff band", ["Standard", "Peak", "Off Peak"], true),
       date("date", "Read on", true),
       { key: "time", label: "Time (HH:MM)", placeholder: "12:00" },
-      { key: "plant", label: "Plant", readOnly: true },
+      { key: "plant", label: "Factory", readOnly: true },
       { key: "kwhTotal", label: "kWh (30 days)", readOnly: true },
       { key: "kwhPeak", label: "Peak kWh", readOnly: true },
       { key: "kwhStandard", label: "Standard kWh", readOnly: true },
@@ -609,14 +622,41 @@ function maintenanceFields(value: string): EntityField[] | null {
       { key: "status", label: "Status", readOnly: true },
     ];
   }
-  if (value === "plants") {
-    return [{ key: "code", label: "Code", readOnly: true }, { key: "name", label: "Plant", readOnly: true }, { key: "region", label: "Region", readOnly: true }];
+  if (value === "factories" || value === "plants") {
+    // Was three read-only fields. MES has had a PATCH for plants, and where a
+    // factory is, since 014.
+    return [
+      text("code", "Code", true),
+      text("name", "Factory name", true),
+      text("address", "Address"),
+      text("city", "City or town"),
+      text("district", "District"),
+      text("country", "Country"),
+      { key: "latitude", label: "Latitude", type: "number", placeholder: "1.0821 — both or neither" },
+      { key: "longitude", label: "Longitude", type: "number", placeholder: "34.1753" },
+      text("region", "Region"),
+      text("timezone", "Timezone"),
+      select("status", "Status", ["Active", "Inactive"], true),
+    ];
+  }
+  if (value.includes("shop floor") || value === "sections") {
+    return [
+      text("plantCode", "Factory", true),
+      text("code", "Code", true),
+      text("name", "Shop floor name", true),
+      select(
+        "lineType",
+        "Line type",
+        ["General", "Wet processing", "Hulling", "Roasting", "Packaging", "Sorting", "Utilities"],
+        true,
+      ),
+    ];
   }
   if (value === "technicians") {
     return [
       { key: "name", label: "Technician", readOnly: true },
       { key: "role", label: "Role", readOnly: true },
-      { key: "plant", label: "Plant", readOnly: true },
+      { key: "plant", label: "Factory", readOnly: true },
       { key: "status", label: "Status", readOnly: true },
     ];
   }
@@ -625,7 +665,9 @@ function maintenanceFields(value: string): EntityField[] | null {
 
 /** List columns for the maintenance tabs. */
 const MAINTENANCE_COLUMNS: Record<string, string[]> = {
-  "work-centers": ["name", "code", "type", "section", "criticality", "status"],
+  "work-centers": ["name", "code", "type", "plantCode", "section", "criticality", "status"],
+  plants: ["code", "name", "city", "district", "country", "latitude", "longitude", "status"],
+  sections: ["plantCode", "code", "name", "lineType"],
   "work-orders": ["num", "title", "workCenter", "priority", "dueDate", "status"],
   "batch-records": ["workOrder", "date", "workCenter", "technician", "hours", "status"],
   "pm-templates": ["code", "name", "assetCategory", "intervalDays"],
