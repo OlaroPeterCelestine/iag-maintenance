@@ -4421,6 +4421,34 @@ export const PAGE_ENTITY_CATALOG: PageEntityMeta[] =
       "share",
       "status"
     ]
+  },
+  {
+    "module": "production",
+    "storageModule": "production",
+    "entity": "purchase-requests",
+    "label": "Purchase Requests",
+    "table": null,
+    "columns": [
+      "date",
+      "docNo",
+      "title",
+      "department",
+      "total",
+      "status"
+    ]
+  },
+  {
+    "module": "production",
+    "storageModule": "production",
+    "entity": "budget-departments",
+    "label": "Budget Departments",
+    "table": null,
+    "columns": [
+      "name",
+      "code",
+      "period",
+      "remaining"
+    ]
   }
 ]
 ;

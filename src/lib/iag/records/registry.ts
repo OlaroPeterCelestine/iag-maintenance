@@ -43,6 +43,7 @@ import {
 import { energy, machinePerformance } from "@/lib/iag/records/energy-kpis";
 import { plants, sections } from "@/lib/iag/records/factories";
 import { jobCosts, labourRates, machineCosts, partsUsed } from "@/lib/iag/records/maintenance-costs";
+import { budgetDepartments, purchaseRequests } from "@/lib/iag/records/purchase-requests";
 import {
   checklistSteps,
   failureCauses,
@@ -443,6 +444,9 @@ export const RECORD_ADAPTERS: Record<string, RecordAdapter> = {
   "production:sections": sections,
   // What maintenance costs (src/lib/iag/records/maintenance-costs.ts)
   "production:parts-used": partsUsed,
+  // Asking procurement to buy spare parts (src/lib/iag/records/purchase-requests.ts)
+  "production:purchase-requests": purchaseRequests,
+  "production:budget-departments": budgetDepartments,
   "production:labour-rates": labourRates,
   "production:job-costs": jobCosts,
   "production:machine-costs": machineCosts,

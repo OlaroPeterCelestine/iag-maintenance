@@ -9,6 +9,7 @@ import {
   ModulePageSkeleton,
 } from "@/components/page-loading";
 import { PersistFailureToaster } from "@/components/persist-failure-toaster";
+import { OfflineOutboxIndicator } from "@/components/offline-outbox-indicator";
 import { RealtimeListener } from "@/components/realtime-listener";
 import { PwaRegister } from "@/components/pwa-register";
 import { UserActivityTracker } from "@/components/user-activity-tracker";
@@ -434,6 +435,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <GlobalSearch open={searchOpen} onOpenChange={onSearchOpenChange} />
       <ForceChangePasswordDialog />
       <PersistFailureToaster />
+      <OfflineOutboxIndicator />
       <RealtimeListener />
       <UserActivityTracker />
       <PwaRegister />

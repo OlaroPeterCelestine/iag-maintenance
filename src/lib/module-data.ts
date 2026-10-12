@@ -937,6 +937,7 @@ export const NAV_MODULES: {
       "PM Templates",
       "Meter Readings",
       "Spare Parts",
+      "Purchase Requests",
       "Downtime",
       "Reliability",
       "Failure Causes",
