@@ -4360,6 +4360,67 @@ export const PAGE_ENTITY_CATALOG: PageEntityMeta[] =
       "totalCost",
       "status"
     ]
+  },
+  {
+    "module": "production",
+    "storageModule": "production",
+    "entity": "fault-reports",
+    "label": "Fault Reports",
+    "table": null,
+    "columns": [
+      "date",
+      "workCenter",
+      "title",
+      "machineStopped",
+      "severity",
+      "reportedBy",
+      "workOrder",
+      "status"
+    ]
+  },
+  {
+    "module": "production",
+    "storageModule": "production",
+    "entity": "checklist-steps",
+    "label": "Checklist Steps",
+    "table": null,
+    "columns": [
+      "workOrder",
+      "workCenter",
+      "stepNo",
+      "step",
+      "result",
+      "reading",
+      "status"
+    ]
+  },
+  {
+    "module": "production",
+    "storageModule": "production",
+    "entity": "meter-readings",
+    "label": "Meter Readings",
+    "table": null,
+    "columns": [
+      "date",
+      "workCenter",
+      "hours"
+    ]
+  },
+  {
+    "module": "production",
+    "storageModule": "production",
+    "entity": "failure-causes",
+    "label": "Failure Causes",
+    "table": null,
+    "columns": [
+      "rank",
+      "problem",
+      "cause",
+      "failures",
+      "machines",
+      "share",
+      "status"
+    ]
   }
 ]
 ;

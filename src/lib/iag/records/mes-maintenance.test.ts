@@ -186,11 +186,15 @@ describe("work orders", () => {
     expect(writes().map((c) => c.method)).toEqual(["POST"]);
   });
 
-  it("offers Start and Complete on the row menu, gated on the MES permissions", () => {
+  it("offers Start, Complete, sign-off and approval on the row menu, gated on the MES permissions", () => {
     const actions = RECORD_ADAPTERS["production:work-orders"].actions || [];
     expect(actions.map((a) => [a.id, a.permission])).toEqual([
       ["start", "mes.change_work_order"],
       ["complete", "mes.complete_work_order"],
+      ["signoff-technician", "mes.change_work_order"],
+      // Checking and approving work are supervisor acts, not a technician's.
+      ["signoff-supervisor", "mes.approve_work_order"],
+      ["approve", "mes.approve_work_order"],
     ]);
   });
 });
