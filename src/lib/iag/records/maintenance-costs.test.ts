@@ -210,6 +210,16 @@ describe("job costs", () => {
     expect(byWo["WO-3"]).toBeUndefined();
   });
 
+  it("cost each technician on a shared job at their own role's rate", async () => {
+    (routes["/api/v1/work-orders"] as { items: Row[] }).items.push({
+      num: "WO-9", title: "Gearbox", asset_tag: "H1", status: "completed", created_at: "2026-10-06T08:00:00Z",
+      attrs: { job_card: { labour: [{ technician: "Okello", hours: 3 }, { technician: "Achan", hours: 2 }] } },
+    });
+    const rows = await RECORD_ADAPTERS["production:job-costs"].list(ctx);
+    // Okello is a Fitter (10,000/h); Achan an Electrician with no rate at Mbale, so the "*" 8,000/h.
+    expect(rows.find((r) => r.workOrder === "WO-9")).toMatchObject({ hours: "5", labourCost: "46,000" });
+  });
+
   it("leave the total blank and say why when a factory has no rate", async () => {
     const rows = await RECORD_ADAPTERS["production:job-costs"].list(ctx);
     const wo4 = rows.find((r) => r.workOrder === "WO-4")!;

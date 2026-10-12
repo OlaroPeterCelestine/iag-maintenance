@@ -239,6 +239,8 @@ export function workOrderToRecord(row: Row): Omit<AppRecord, "id"> & { id?: stri
     estimatedCost: str(extra.estimatedCost),
     description: str(extra.description),
     pmTemplate: str(extra.pm_template),
+    // Who saw the fault, when the job came from a fault report.
+    reportedBy: str(extra.reported_by),
     checklist: checklistText(extra.checklist),
     attachments: attachmentsJson(pick(extra, "attachments")),
     // Phase 2: failure code, approval, checklist progress and sign-off.
@@ -396,9 +398,9 @@ export const workOrders: RecordAdapter = {
       path: "/api/v1/work-orders",
       query: { limit: MES_LIST_LIMIT },
     });
-    return unwrapList<Row>(payload).map((row) =>
-      withMeta(workOrderToRecord(row), str(pick(row, "num"))),
-    );
+    return unwrapList<Row>(payload)
+      .filter(isMaintenanceWorkOrder)
+      .map((row) => withMeta(workOrderToRecord(row), str(pick(row, "num"))));
   },
 
   async create(_ctx, record) {
@@ -448,7 +450,15 @@ export const workOrders: RecordAdapter = {
     await writeFailure(id, record, await getWorkOrder(id));
     const body = workOrderPatchBody(record);
     if (Object.keys(body).length) row = await patchWorkOrder(id, body);
+    // Signatures from a paper sheet: the technician's before completion
+    // (completion needs it), the supervisor's after (a check of finished work).
+    if (str(record.technicianSignedBy).trim()) {
+      row = (await signOff(id, "technician", { signedBy: record.technicianSignedBy, signedOn: record.technicianSignedOn })) || row;
+    }
     if (isCompleted(record.status)) row = (await completeWorkOrder(id)) || row;
+    if (str(record.supervisorCheckedBy).trim()) {
+      row = (await signOff(id, "supervisor", { signedBy: record.supervisorCheckedBy, signedOn: record.supervisorCheckedOn })) || row;
+    }
     row = row || (await getWorkOrder(id));
     return row ? withMeta(workOrderToRecord(row), id) : null;
   },
@@ -463,10 +473,73 @@ type JobCard = {
   meterReading?: string;
   partsUsed?: string;
   contractorCost?: string;
+  /** One line per technician per day; hours is their total. */
+  labour?: LabourLine[];
+  machineLeft?: string;
+  followUp?: string;
   completion?: string;
   workDone?: string;
   attachments?: unknown;
 };
+
+/**
+ * iag-production keeps its Batch Records as MES work orders of type
+ * "production". They are production documents, not maintenance work, and
+ * used to show up here as work orders and as job cards with their kilograms
+ * read as hours. Every maintenance list leaves them out.
+ */
+export type LabourLine = { technician: string; date?: string; start?: string; finish?: string; hours: number };
+
+function clockMinutes(v: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(v.trim());
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  return h < 24 && min < 60 ? h * 60 + min : null;
+}
+
+/**
+ * Labour lines from a job card: several technicians, each with their own
+ * hours — or start and finish, from which the hours are worked out. A line
+ * whose finish is before its start is taken to run past midnight.
+ */
+export function parseLabour(value: unknown): LabourLine[] {
+  let raw: unknown = value;
+  if (typeof value === "string") {
+    if (!value.trim()) return [];
+    try {
+      raw = JSON.parse(value);
+    } catch {
+      throw new InputError("Labour lines could not be read.");
+    }
+  }
+  if (!Array.isArray(raw)) return [];
+  const out: LabourLine[] = [];
+  raw.forEach((item, i) => {
+    const r = (item && typeof item === "object" ? item : {}) as Row;
+    const technician = str(r.technician).trim();
+    const start = str(r.start).trim();
+    const finish = str(r.finish).trim();
+    let hours = Number(str(r.hours).trim());
+    if (!technician && !start && !finish && !str(r.hours).trim()) return; // an empty line
+    if (!technician) throw new InputError(`Labour line ${i + 1}: who did the work?`);
+    if (!(hours > 0) && start && finish) {
+      const a = clockMinutes(start);
+      const b = clockMinutes(finish);
+      if (a === null || b === null) throw new InputError(`Labour line ${i + 1}: times are HH:MM.`);
+      hours = Math.round((((b - a + 1440) % 1440) / 60) * 100) / 100;
+    }
+    if (!(hours > 0) || hours > 24) throw new InputError(`Labour line ${i + 1}: hours between 0 and 24, or a start and finish.`);
+    const date = str(r.date).trim();
+    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new InputError(`Labour line ${i + 1}: the date is YYYY-MM-DD.`);
+    out.push({ technician, hours, ...(date ? { date } : {}), ...(start ? { start } : {}), ...(finish ? { finish } : {}) });
+  });
+  return out;
+}
+
+export function isMaintenanceWorkOrder(row: Row): boolean {
+  return str(pick(row, "wo_type")).toLowerCase() !== "production";
+}
 
 export function jobCardOf(row: Row): JobCard | null {
   const extra = attrs(row);
@@ -474,17 +547,6 @@ export function jobCardOf(row: Row): JobCard | null {
   if (card && typeof card === "object" && !Array.isArray(card)) return card as JobCard;
   // Cards written by the earlier adapter, which created a work order per card
   // and kept the figures loose in attrs under the production form's names.
-  if (str(pick(row, "wo_type")) === "production") {
-    return {
-      technician: str(pick(row, "assignee")),
-      hours: str(extra.inputQuantity),
-      meterReading: str(extra.outputQuantity),
-      partsUsed: str(extra.bom),
-      completion: str(extra.yieldPercent),
-      workDone: str(extra.steps),
-      attachments: extra.attachments,
-    };
-  }
   return null;
 }
 
@@ -503,6 +565,9 @@ export function jobCardToRecord(row: Row): Omit<AppRecord, "id"> & { id?: string
     meterReading: str(card.meterReading),
     partsUsed: str(card.partsUsed),
     contractorCost: str(card.contractorCost),
+    labour: card.labour?.length ? JSON.stringify(card.labour) : "",
+    machineLeft: str(card.machineLeft),
+    followUp: str(card.followUp),
     completion: str(card.completion),
     workDone: str(card.workDone),
     status: titleCase(str(pick(row, "status"))) || "Open",
@@ -521,6 +586,9 @@ const JOB_CARD_FIELDS = [
   "contractorCost",
   "completion",
   "workDone",
+  // From the paper sheet: how the machine was left, and what is still to do.
+  "machineLeft",
+  "followUp",
 ] as const;
 
 /**
@@ -550,6 +618,16 @@ async function writeJobCard(
   }
   const refs = attachmentRefs(record.attachments);
   if (refs !== undefined) merged.attachments = refs;
+  // Labour lines replace the single technician-and-hours: the card's hours
+  // become their total, and its technician the first who worked it.
+  if (record.labour !== undefined) {
+    const lines = parseLabour(record.labour);
+    merged.labour = lines;
+    if (lines.length) {
+      merged.hours = String(Math.round(lines.reduce((a, l) => a + l.hours, 0) * 100) / 100);
+      if (!str(record.technician).trim()) merged.technician = lines[0].technician;
+    }
+  }
 
   // A new meter reading on the card is also the machine's running hours,
   // which a PM interval in hours is measured on. Sent first: a reading MES
@@ -582,7 +660,7 @@ export const jobCards: RecordAdapter = {
       query: { limit: MES_LIST_LIMIT },
     });
     return unwrapList<Row>(payload)
-      .filter((row) => jobCardOf(row) !== null)
+      .filter((row) => isMaintenanceWorkOrder(row) && jobCardOf(row) !== null)
       .map((row) => withMeta(jobCardToRecord(row), str(pick(row, "num"))));
   },
 

@@ -164,6 +164,7 @@ export default function MaintenanceDashboardPage() {
             { href: "/production?view=alerts", label: "Alerts" },
             { href: "/production?view=fault-reports", label: "Fault reports" },
             { href: "/planner", label: "Planner" },
+            { href: "/work-orders/print", label: "Print job sheets" },
             { href: "/machines/labels", label: "Machine QR labels" },
           ].map((item) => (
             <Link

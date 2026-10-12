@@ -424,7 +424,10 @@ export async function costJobs(): Promise<{ jobs: JobCost[]; machineNames: Map<s
     listPlants().catch(() => [] as Row[]),
     listTechnicians().catch(() => [] as Row[]),
   ]);
-  const live = orders.filter((wo) => str(pick(wo, "status")) !== "cancelled");
+  // Production's batch records are MES work orders too, of type "production"; not maintenance cost.
+  const live = orders.filter(
+    (wo) => str(pick(wo, "status")) !== "cancelled" && str(pick(wo, "wo_type")).toLowerCase() !== "production",
+  );
   const consumption = await listConsumption(live.map((wo) => str(pick(wo, "num"))));
 
   const plantOf = new Map(assets.map((a) => [str(pick(a, "tag")), str(pick(a, "plant_code"))]));
@@ -459,22 +462,28 @@ export async function costJobs(): Promise<{ jobs: JobCost[]; machineNames: Map<s
     const machine = str(pick(wo, "asset_tag"));
     const plant = plantOf.get(machine) || "";
     const card = (jobCardOf(wo) || {}) as Row;
-    const hours = num(card.hours);
     const technician = str(card.technician) || str(pick(wo, "assignee"));
-    const role = roleOf.get(technician.trim().toLowerCase()) || "";
     const at = ratesAt.get(plant);
     const notes: string[] = [];
+    // Each technician's hours at their own role's rate. A card with labour
+    // lines is several people; an older card is one technician and hours.
+    const lines: { technician: string; hours: number }[] =
+      Array.isArray(card.labour) && card.labour.length
+        ? (card.labour as Row[]).map((l) => ({ technician: str(l.technician), hours: num(l.hours) }))
+        : [{ technician, hours: num(card.hours) }];
+    const hours = lines.reduce((a, l) => a + l.hours, 0);
 
-    let labour: number | undefined;
-    if (hours > 0) {
+    let labour: number | undefined = 0;
+    for (const line of lines) {
+      if (!(line.hours > 0)) continue;
+      const role = roleOf.get(line.technician.trim().toLowerCase()) || "";
       const rate = at && role && role in at.rates ? num(at.rates[role]) : at && ANYONE in at.rates ? num(at.rates[ANYONE]) : undefined;
       if (rate === undefined) {
-        notes.push(`No labour rate for ${role || technician || "this technician"} at ${plant || "this factory"}`);
-      } else {
-        labour = hours * rate;
+        notes.push(`No labour rate for ${role || line.technician || "this technician"} at ${plant || "this factory"}`);
+        labour = undefined;
+      } else if (labour !== undefined) {
+        labour += line.hours * rate;
       }
-    } else {
-      labour = 0;
     }
 
     let parts: number | undefined;

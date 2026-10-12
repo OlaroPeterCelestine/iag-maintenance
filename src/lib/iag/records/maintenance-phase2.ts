@@ -271,7 +271,7 @@ export const checklistSteps: RecordAdapter = {
       await gatewayFetch({ service: "mes", path: "/api/v1/work-orders", query: { limit: 200 } }),
     );
     return orders
-      .filter((wo) => str(pick(wo, "status")) !== "cancelled")
+      .filter((wo) => str(pick(wo, "status")) !== "cancelled" && str(pick(wo, "wo_type")).toLowerCase() !== "production")
       .flatMap(checklistStepRows);
   },
 
@@ -289,7 +289,18 @@ export const checklistSteps: RecordAdapter = {
         service: "mes",
         path: `/api/v1/work-orders/${encodeURIComponent(num)}/checklist`,
         method: "POST",
-        body: { results: [omitEmpty({ index, result, reading, note: str(record.note).trim() || undefined })] },
+        body: {
+          results: [
+            omitEmpty({
+              index,
+              result,
+              reading,
+              note: str(record.note).trim() || undefined,
+              // Who ticked it on the paper sheet, when someone else enters it (iag-mes#16).
+              by: str(record.markedBy).trim() || undefined,
+            }),
+          ],
+        },
       }),
     );
     return row ? checklistStepRows(row).find((r) => r.id === id) || null : null;
@@ -494,9 +505,23 @@ export async function writeApproval(num: string, record: AppRecord): Promise<voi
   });
 }
 
-export async function signOff(num: string, role: "technician" | "supervisor"): Promise<Row | null> {
+/**
+ * Sign off as the person signed in, or — entering a paper sheet — as the
+ * person whose signature is on it, with the date they wrote (iag-mes#16).
+ */
+export async function signOff(
+  num: string,
+  role: "technician" | "supervisor",
+  paper?: { signedBy?: string; signedOn?: string },
+): Promise<Row | null> {
+  const signedBy = str(paper?.signedBy).trim();
   return unwrapOne<Row>(
-    await mes({ service: "mes", path: `/api/v1/work-orders/${encodeURIComponent(num)}/signoff/${role}`, method: "POST" }),
+    await mes({
+      service: "mes",
+      path: `/api/v1/work-orders/${encodeURIComponent(num)}/signoff/${role}`,
+      method: "POST",
+      body: signedBy ? omitEmpty({ signed_by: signedBy, signed_on: str(paper?.signedOn).trim() || undefined }) : undefined,
+    }),
   );
 }
 
