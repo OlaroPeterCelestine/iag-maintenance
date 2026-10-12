@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { useAppShell } from "@/components/app-shell";
 import { FACTORY_PARAM, FactoryScopeSelect } from "@/components/factory-scope-select";
+import { MaintenanceOverview } from "@/components/maintenance-overview/maintenance-overview";
 import { NotificationsMenu } from "@/components/notifications-menu";
 import { PageMoreMenu } from "@/components/page-more-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -116,18 +117,7 @@ export default function MaintenanceDashboardPage() {
   );
 
   const orders = useMemo(() => loadScoped("work-orders"), [loadScoped]);
-  const schedules = useMemo(() => loadScoped("pm-schedules"), [loadScoped]);
-  const parts = useMemo(() => loadScoped("spare-parts"), [loadScoped]);
-  const downtime = useMemo(() => loadScoped("downtime-logs"), [loadScoped]);
 
-  const openOrders = orders.filter(isOpen);
-  const stopped = machines.filter((row) => /down|maintenance/i.test(String(row.status || "")));
-  const openDowntime = downtime.filter(isOpen);
-  const overduePm = schedules.filter((row) => /overdue/i.test(String(row.status || "")));
-  const lowParts = parts.filter((row) => {
-    const reorder = Number(row.reorderLevel);
-    return reorder > 0 && row.onHand !== "" && Number(row.onHand) < reorder;
-  });
   const recent = [...orders]
     .sort((a, b) => String(b.date || b.updatedAt || "").localeCompare(String(a.date || a.updatedAt || "")))
     .slice(0, 8);
@@ -158,43 +148,8 @@ export default function MaintenanceDashboardPage() {
       </header>
 
       <div className="min-h-0 flex-1 overflow-auto p-4">
-        <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <Link
-            href="/production?view=work-orders"
-            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:border-sky-300 dark:border-slate-800 dark:bg-slate-950"
-          >
-            <p className="text-[11px] uppercase tracking-wide text-slate-500">Open work orders</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-50">{openOrders.length}</p>
-          </Link>
-          <Link
-            href="/production?view=work-centers"
-            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:border-sky-300 dark:border-slate-800 dark:bg-slate-950"
-          >
-            <p className="text-[11px] uppercase tracking-wide text-slate-500">Machines stopped</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-50">{stopped.length}</p>
-          </Link>
-          <Link
-            href="/production?view=downtime-logs"
-            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:border-sky-300 dark:border-slate-800 dark:bg-slate-950"
-          >
-            <p className="text-[11px] uppercase tracking-wide text-slate-500">Open downtime</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-50">{openDowntime.length}</p>
-          </Link>
-          <Link
-            href="/production?view=pm-schedules"
-            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:border-sky-300 dark:border-slate-800 dark:bg-slate-950"
-          >
-            <p className="text-[11px] uppercase tracking-wide text-slate-500">Overdue PM</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-50">{overduePm.length}</p>
-          </Link>
-          <Link
-            href="/production?view=spare-parts"
-            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:border-sky-300 dark:border-slate-800 dark:bg-slate-950"
-          >
-            <p className="text-[11px] uppercase tracking-wide text-slate-500">Parts below reorder</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-50">{lowParts.length}</p>
-          </Link>
-        </div>
+        {/* Tiles, targets and charts: src/components/maintenance-overview. */}
+        <MaintenanceOverview factory={factory} />
 
         <div className="mb-4 flex flex-wrap gap-2">
           {[
