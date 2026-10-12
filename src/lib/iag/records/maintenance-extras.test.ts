@@ -270,11 +270,13 @@ describe("reporting screens", () => {
 
   it("read a recommendation back after accepting it, since the verb returns only a status", async () => {
     routes["/api/v1/ai/recommendations"] = {
-      items: [{ id: "r-1", title: "Grease H1", status: "accepted", confidence: 0.82, created_at: "2026-10-02T06:00:00Z" }],
+      items: [{ id: "r-1", title: "Grease H1", kind: "predictive_maintenance", status: "accepted", confidence: 0.82, created_at: "2026-10-02T06:00:00Z" }],
     };
     const accept = RECORD_ADAPTERS["production:recommendations"].actions!.find((a) => a.id === "accept")!;
     const saved = await accept.run(ctx, "r-1");
     expect(writes()[0].path).toBe("/api/v1/ai/recommendations/r-1/accept");
-    expect(saved).toMatchObject({ id: "r-1", status: "Accepted", confidence: "82" });
+    // The rule is named; MES's fixed "confidence" is not a measurement and is dropped.
+    expect(saved).toMatchObject({ id: "r-1", status: "Accepted", kind: "Vibration over 4 mm/s" });
+    expect(saved).not.toHaveProperty("confidence");
   });
 });

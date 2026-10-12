@@ -4195,7 +4195,7 @@ export const PAGE_ENTITY_CATALOG: PageEntityMeta[] =
     "module": "production",
     "storageModule": "production",
     "entity": "recommendations",
-    "label": "Recommendations",
+    "label": "Suggestions",
     "table": "page_recommendations",
     "columns": [
       "date",
@@ -4291,6 +4291,74 @@ export const PAGE_ENTITY_CATALOG: PageEntityMeta[] =
       "code",
       "name",
       "lineType"
+    ]
+  },
+  {
+    "module": "production",
+    "storageModule": "production",
+    "entity": "parts-used",
+    "label": "Parts Used",
+    "table": null,
+    "columns": [
+      "date",
+      "workOrder",
+      "workCenter",
+      "part",
+      "partName",
+      "qty",
+      "store",
+      "totalCost",
+      "status"
+    ]
+  },
+  {
+    "module": "production",
+    "storageModule": "production",
+    "entity": "labour-rates",
+    "label": "Labour Rates",
+    "table": null,
+    "columns": [
+      "plantCode",
+      "role",
+      "hourlyRate",
+      "currency"
+    ]
+  },
+  {
+    "module": "production",
+    "storageModule": "production",
+    "entity": "job-costs",
+    "label": "Job Costs",
+    "table": null,
+    "columns": [
+      "date",
+      "workOrder",
+      "workCenter",
+      "hours",
+      "labourCost",
+      "partsCost",
+      "contractorCost",
+      "totalCost",
+      "status"
+    ]
+  },
+  {
+    "module": "production",
+    "storageModule": "production",
+    "entity": "machine-costs",
+    "label": "Machine Costs",
+    "table": null,
+    "columns": [
+      "month",
+      "workCenter",
+      "plantCode",
+      "jobs",
+      "hours",
+      "labourCost",
+      "partsCost",
+      "contractorCost",
+      "totalCost",
+      "status"
     ]
   }
 ]
