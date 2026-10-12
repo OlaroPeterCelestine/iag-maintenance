@@ -7,6 +7,7 @@ import {
 } from "@/lib/ledger/fx";
 import { parseAmount } from "@/lib/ledger/types";
 import { type ModuleSlug, NAV_MODULES } from "@/lib/module-data";
+import { FAILURE_CAUSES, FAILURE_PROBLEMS, FAILURE_REMEDIES } from "@/lib/iag/records/failure-catalog";
 
 /** Form create/edit: only Draft→Submitted is writable via record save; desk advances the rest.
  *  Returned for Amendment is injected into the select when that is the current status. */
@@ -468,7 +469,23 @@ function maintenanceFields(value: string): EntityField[] | null {
       number("estimatedCost", "Estimated cost"),
       { key: "pmTemplate", label: "From PM template", readOnly: true },
       { key: "checklist", label: "Checklist", type: "textarea", readOnly: true },
+      // Run step by step under Checklist Steps; completion needs every step
+      // marked and the technician's sign-off (iag-mes enforces it).
+      { key: "checklistProgress", label: "Checklist steps marked", readOnly: true },
+      { key: "signedBy", label: "Signed off by", readOnly: true },
+      { key: "checkedBy", label: "Checked by (supervisor)", readOnly: true },
       { key: "description", label: "Fault and the work required", type: "textarea" },
+      // Required to complete a breakdown or corrective job.
+      select("failureProblem", "Failure — problem", FAILURE_PROBLEMS),
+      select("failureCause", "Failure — cause", FAILURE_CAUSES),
+      select("failureRemedy", "Failure — remedy", FAILURE_REMEDIES),
+      { key: "failureNote", label: "Failure note (needed for Other)", type: "textarea" },
+      // Work estimated at or above the factory's threshold waits for someone
+      // other than whoever raised it.
+      { key: "approval", label: "Approval", readOnly: true },
+      { key: "approvalBy", label: "Decided by", readOnly: true },
+      select("approvalDecision", "Approval decision", ["Approve", "Reject"]),
+      { key: "approvalNote", label: "Approval note (needed to reject)", type: "textarea" },
       { key: "attachments", label: "Photos and manuals", type: "attachments" },
     ];
   }
@@ -479,7 +496,8 @@ function maintenanceFields(value: string): EntityField[] | null {
       { key: "workCenter", label: "Machine", readOnly: true },
       text("technician", "Technician", true),
       number("hours", "Hours booked", true),
-      number("meterReading", "Meter / hour-meter reading"),
+      // Also recorded as the machine's running hours, which PM by hours uses.
+      number("meterReading", "Running-hours meter reading"),
       // Parts from the stores are booked under Parts Used, which takes them
       // out of stock and costs them. This is for anything else worth noting.
       text("partsUsed", "Other parts / notes"),
@@ -497,6 +515,8 @@ function maintenanceFields(value: string): EntityField[] | null {
       text("name", "Service", true),
       text("assetCategory", "Machine type"),
       number("intervalDays", "Every (days)", true),
+      // Due at whichever comes first: the days, or these running hours.
+      { key: "intervalHours", label: "Or every (running hours)", type: "number", placeholder: "e.g. 250 — blank for days only" },
       {
         key: "checklist",
         label: "Checklist — one step per line",
@@ -512,6 +532,8 @@ function maintenanceFields(value: string): EntityField[] | null {
       date("nextDue", "First due"),
       { key: "templateName", label: "Service", readOnly: true },
       { key: "intervalDays", label: "Every (days)", readOnly: true },
+      { key: "hoursUsed", label: "Running hours since last service", readOnly: true },
+      { key: "meterState", label: "By running hours", readOnly: true },
       { key: "lastDone", label: "Last done", readOnly: true },
       { key: "status", label: "Status", readOnly: true },
     ];
@@ -603,6 +625,59 @@ function maintenanceFields(value: string): EntityField[] | null {
       { key: "kind", label: "Rule", readOnly: true },
       { key: "body", label: "Why", type: "textarea", readOnly: true },
       { key: "status", label: "Status", readOnly: true },
+    ];
+  }
+  if (value === "fault reports" || value === "fault-reports") {
+    return [
+      text("workCenter", "Machine", true),
+      { key: "title", label: "What is wrong", required: true, placeholder: "e.g. Huller making a grinding noise" },
+      select("machineStopped", "Has the machine stopped?", ["No", "Yes"], true),
+      select("severity", "How serious", ["Warning", "Critical", "Info"]),
+      { key: "description", label: "What you saw", type: "textarea" },
+      { key: "date", label: "Reported", readOnly: true },
+      { key: "reportedBy", label: "Reported by", readOnly: true },
+      { key: "status", label: "Status", readOnly: true },
+      { key: "workOrder", label: "Work order", readOnly: true },
+      { key: "triagedBy", label: "Triaged by", readOnly: true },
+      // Triage (edit only): raise the work, or close it with the reason.
+      select("decision", "Decision", ["Make work order", "No work needed"]),
+      select("priority", "Work order priority", ["High", "Critical", "Medium", "Low"]),
+      text("assignee", "Assign to"),
+      { key: "rejectedReason", label: "Why no work is needed", type: "textarea" },
+    ];
+  }
+  if (value === "checklist steps" || value === "checklist-steps") {
+    return [
+      { key: "workOrder", label: "Work order", readOnly: true },
+      { key: "workCenter", label: "Machine", readOnly: true },
+      { key: "stepNo", label: "Step", readOnly: true },
+      { key: "step", label: "What to do", readOnly: true },
+      select("result", "Result", ["Pass", "Fail", "N/A"], true),
+      number("reading", "Reading (if the step measures something)"),
+      { key: "note", label: "Note (needed when it fails)", type: "textarea" },
+      { key: "markedBy", label: "Marked by", readOnly: true },
+      { key: "markedAt", label: "Marked on", readOnly: true },
+      { key: "woStatus", label: "Work order status", readOnly: true },
+    ];
+  }
+  if (value === "meter readings" || value === "meter-readings") {
+    return [
+      text("workCenter", "Machine", true),
+      number("hours", "Running hours on the meter", true),
+      date("date", "Read on"),
+      // MES refuses a reading below the last one unless this is Yes.
+      select("meterReplaced", "Meter replaced or reset?", ["No", "Yes"]),
+    ];
+  }
+  if (value === "failure causes" || value === "failure-causes") {
+    return [
+      { key: "rank", label: "#", readOnly: true },
+      { key: "problem", label: "Problem", readOnly: true },
+      { key: "cause", label: "Cause", readOnly: true },
+      { key: "failures", label: "Failures (12 months)", readOnly: true },
+      { key: "machines", label: "Machines", readOnly: true },
+      { key: "share", label: "Share", readOnly: true },
+      { key: "status", label: "Pareto", readOnly: true },
     ];
   }
   if (value === "parts used" || value === "parts-used") {
@@ -716,6 +791,8 @@ function maintenanceFields(value: string): EntityField[] | null {
       text("region", "Region"),
       text("timezone", "Timezone"),
       select("status", "Status", ["Active", "Inactive"], true),
+      // Maintenance work estimated at or above this waits for approval.
+      { key: "approvalThreshold", label: "Approve work estimated at or above", type: "number", placeholder: "Blank — no approval needed" },
     ];
   }
   if (value.includes("shop floor") || value === "sections") {
@@ -747,7 +824,7 @@ const MAINTENANCE_COLUMNS: Record<string, string[]> = {
   "work-centers": ["name", "code", "type", "plantCode", "section", "criticality", "status"],
   plants: ["code", "name", "city", "district", "country", "latitude", "longitude", "status"],
   sections: ["plantCode", "code", "name", "lineType"],
-  "work-orders": ["num", "title", "workCenter", "priority", "dueDate", "status"],
+  "work-orders": ["num", "title", "workCenter", "priority", "dueDate", "approval", "status"],
   "batch-records": ["workOrder", "date", "workCenter", "technician", "hours", "status"],
   "pm-templates": ["code", "name", "assetCategory", "intervalDays"],
   "pm-schedules": ["template", "workCenter", "nextDue", "lastDone", "status"],
@@ -756,6 +833,10 @@ const MAINTENANCE_COLUMNS: Record<string, string[]> = {
   reliability: ["workCenter", "mtbfHours", "mttrHours", "availability", "failures", "status"],
   alerts: ["date", "severity", "workCenter", "message", "status"],
   recommendations: ["date", "title", "workCenter", "kind", "status"],
+  "fault-reports": ["date", "workCenter", "title", "machineStopped", "severity", "reportedBy", "workOrder", "status"],
+  "checklist-steps": ["workOrder", "workCenter", "stepNo", "step", "result", "reading", "status"],
+  "meter-readings": ["date", "workCenter", "hours"],
+  "failure-causes": ["rank", "problem", "cause", "failures", "machines", "share", "status"],
   "parts-used": ["date", "workOrder", "workCenter", "part", "partName", "qty", "store", "totalCost", "status"],
   "labour-rates": ["plantCode", "role", "hourlyRate", "currency"],
   "job-costs": ["date", "workOrder", "workCenter", "hours", "labourCost", "partsCost", "contractorCost", "totalCost", "status"],

@@ -53,6 +53,12 @@ function plantToRecord(row: Row) {
     country: str(pick(row, "country")),
     latitude: str(pick(row, "gps_lat")),
     longitude: str(pick(row, "gps_lng")),
+    // Work estimated at or above this waits for approval (iag-mes#14). Blank = off.
+    approvalThreshold: (() => {
+      const a = pick(row, "attrs");
+      const v = a && typeof a === "object" ? Number((a as Row).approval_threshold) : 0;
+      return v > 0 ? String(v) : "";
+    })(),
     status: str(pick(row, "status")) === "inactive" ? "Inactive" : "Active",
     createdAt: str(pick(row, "created_at")),
     updatedAt: str(pick(row, "updated_at")),
@@ -129,6 +135,12 @@ export const plants: RecordAdapter = {
     }
     if (has("status")) body.status = /inactive/i.test(str(record.status)) ? "inactive" : "active";
     if (has("latitude") || has("longitude")) Object.assign(body, gpsPair(record));
+    if (has("approvalThreshold")) {
+      const raw = str(record.approvalThreshold).replace(/,/g, "").trim();
+      const v = raw === "" ? 0 : Number(raw);
+      if (!Number.isFinite(v) || v < 0) throw new InputError("The approval threshold is an amount, or blank for none.");
+      body.approval_threshold = v;
+    }
     const row = unwrapOne<Row>(
       await gatewayFetch({
         service: "mes",
@@ -137,6 +149,17 @@ export const plants: RecordAdapter = {
         body,
       }),
     );
+    // An MES without iag-mes#14 ignores approval_threshold and answers 200.
+    if (row && typeof body.approval_threshold === "number" && body.approval_threshold > 0) {
+      const a = pick(row, "attrs");
+      const stored = a && typeof a === "object" ? Number((a as Row).approval_threshold) : NaN;
+      if (stored !== body.approval_threshold) {
+        throw new InputError(
+          "The other changes were saved, but MES did not store the approval threshold (iag-mes#14 is not deployed).",
+          409,
+        );
+      }
+    }
     return row ? withMeta(plantToRecord(row), str(pick(row, "code")) || id) : null;
   },
 };

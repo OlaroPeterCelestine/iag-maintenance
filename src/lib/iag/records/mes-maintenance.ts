@@ -20,6 +20,16 @@
  * no job-card table, so one work order carries one job card.
  */
 import { gatewayFetch, unwrapList, unwrapOne } from "@/lib/iag/gateway";
+import {
+  approvalFields,
+  failureFields,
+  meterFields,
+  meterStatusBySchedule,
+  recordJobCardMeter,
+  signOff,
+  writeApproval,
+  writeFailure,
+} from "@/lib/iag/records/maintenance-phase2";
 import { resourceAdapter } from "@/lib/iag/records/resource";
 import {
   attachmentRefs,
@@ -229,6 +239,9 @@ export function workOrderToRecord(row: Row): Omit<AppRecord, "id"> & { id?: stri
     pmTemplate: str(extra.pm_template),
     checklist: checklistText(extra.checklist),
     attachments: attachmentsJson(pick(extra, "attachments")),
+    // Phase 2: failure code, approval, checklist progress and sign-off.
+    ...failureFields(row),
+    ...approvalFields(row),
     createdAt: str(pick(row, "created_at")),
     updatedAt: str(pick(row, "updated_at")),
   };
@@ -310,6 +323,42 @@ const workOrderActions: RecordAction[] = [
       return row ? withMeta(workOrderToRecord(row), id) : null;
     },
   },
+  {
+    // The checklist's sign-off: whoever is signed in did the work.
+    id: "signoff-technician",
+    label: "Sign off the work",
+    doneLabel: "Signed off",
+    permission: "mes.change_work_order",
+    whenStatus: WORK_ORDER_LIVE,
+    async run(_ctx, id) {
+      const row = await signOff(id, "technician");
+      return row ? withMeta(workOrderToRecord(row), id) : null;
+    },
+  },
+  {
+    id: "signoff-supervisor",
+    label: "Check completed work",
+    doneLabel: "Checked",
+    permission: "mes.approve_work_order",
+    whenStatus: ["Completed"],
+    async run(_ctx, id) {
+      const row = await signOff(id, "supervisor");
+      return row ? withMeta(workOrderToRecord(row), id) : null;
+    },
+  },
+  {
+    // Rejecting needs a reason, so it is in the edit form (Approval decision).
+    id: "approve",
+    label: "Approve work",
+    doneLabel: "Approved",
+    permission: "mes.approve_work_order",
+    whenStatus: ["Draft", "Scheduled", "Open"],
+    async run(_ctx, id) {
+      await writeApproval(id, { approvalDecision: "approve" } as unknown as AppRecord);
+      const row = await getWorkOrder(id);
+      return row ? withMeta(workOrderToRecord(row), id) : null;
+    },
+  },
 ];
 
 export const workOrders: RecordAdapter = {
@@ -364,11 +413,18 @@ export const workOrders: RecordAdapter = {
     return row ? withMeta(workOrderToRecord(row), num) : null;
   },
 
+  /**
+   * Order matters: an approval decision before a status that needs it, and
+   * the failure code before the completion that requires it.
+   */
   async update(_ctx, id, record) {
     let row: Row | null = null;
+    await writeApproval(id, record);
+    await writeFailure(id, record, await getWorkOrder(id));
     const body = workOrderPatchBody(record);
     if (Object.keys(body).length) row = await patchWorkOrder(id, body);
     if (isCompleted(record.status)) row = (await completeWorkOrder(id)) || row;
+    row = row || (await getWorkOrder(id));
     return row ? withMeta(workOrderToRecord(row), id) : null;
   },
 };
@@ -470,6 +526,14 @@ async function writeJobCard(
   const refs = attachmentRefs(record.attachments);
   if (refs !== undefined) merged.attachments = refs;
 
+  // A new meter reading on the card is also the machine's running hours,
+  // which a PM interval in hours is measured on. Sent first: a reading MES
+  // refuses (lower than the last) should stop the save, not follow it.
+  const priorMeter = str(existing && typeof existing === "object" ? (existing as Row).meterReading : "");
+  if (record.meterReading !== undefined && str(record.meterReading).trim() !== priorMeter.trim()) {
+    await recordJobCardMeter(str(pick(current, "asset_tag")), record.meterReading, record.date);
+  }
+
   const body: Record<string, unknown> = { attrs: { job_card: merged } };
   // Booking a technician on the card assigns the work order to them when it
   // has nobody yet.
@@ -524,6 +588,8 @@ export function pmTemplateToRecord(row: Row): Omit<AppRecord, "id"> & { id?: str
     name: str(pick(row, "name")),
     assetCategory: str(pick(row, "asset_category")),
     intervalDays: str(pick(row, "interval_days")),
+    // Running hours, alongside days: due at whichever comes first. 0 = off.
+    intervalHours: Number(extra.interval_hours) > 0 ? str(extra.interval_hours) : "",
     checklist: checklistText(pick(row, "checklist")),
     notes: str(extra.notes),
     createdAt: "",
@@ -543,7 +609,7 @@ const pmTemplatesBase = resourceAdapter({
       // ShouldBindJSON, no coercion: a string here is a 400.
       interval_days: numberOrUndefined(record.intervalDays),
       checklist: checklistLines(record.checklist),
-      attrs: attrsOrOmit({ notes: record.notes }),
+      attrs: attrsOrOmit({ notes: record.notes, interval_hours: numberOrUndefined(record.intervalHours) }),
     }),
   noUpdate: true,
   noDelete: true,
@@ -577,8 +643,13 @@ export const pmTemplates: RecordAdapter = {
         // An emptied checklist is a real edit, so it is sent as [] rather than
         // dropped; omitEmpty keeps arrays.
         checklist: record.checklist !== undefined ? checklistLines(record.checklist) : undefined,
-        // MES merges attrs key by key.
-        attrs: record.notes !== undefined ? { notes: record.notes } : undefined,
+        // MES merges attrs key by key. A blank hours interval is sent as 0,
+        // which MES reads as "by date only".
+        attrs: attrsOrOmit({
+          notes: record.notes,
+          interval_hours:
+            record.intervalHours !== undefined ? numberOrUndefined(record.intervalHours) ?? 0 : undefined,
+        }),
       }),
     });
     const row = unwrapOne<Row>(payload);
@@ -596,6 +667,7 @@ async function listTemplates(): Promise<Row[]> {
 function scheduleToRecord(
   row: Row,
   templates: Map<string, Row>,
+  meter?: Row,
 ): Omit<AppRecord, "id"> & { id?: string } {
   const template = templates.get(str(pick(row, "template_id"))) || {};
   const code = str(pick(template, "code"));
@@ -606,6 +678,7 @@ function scheduleToRecord(
     template: code || str(pick(row, "template_id")),
     templateName: str(pick(template, "name")),
     intervalDays: str(pick(template, "interval_days")),
+    ...meterFields(meter),
     workCenter: asset,
     nextDue: isoDate(pick(row, "next_due_at")),
     lastDone: isoDate(pick(row, "last_done_at")),
@@ -637,13 +710,14 @@ export const pmSchedules: RecordAdapter = {
   resource: "/api/v1/pm-schedules",
 
   async list() {
-    const [templates, payload] = await Promise.all([
+    const [templates, payload, meters] = await Promise.all([
       listTemplates(),
       gatewayFetch({ service: "mes", path: "/api/v1/pm-schedules" }),
+      meterStatusBySchedule(),
     ]);
     const byId = new Map(templates.map((t) => [str(pick(t, "id")), t]));
     return unwrapList<Row>(payload).map((row) =>
-      withMeta(scheduleToRecord(row, byId), str(pick(row, "id"))),
+      withMeta(scheduleToRecord(row, byId, meters.get(str(pick(row, "id")))), str(pick(row, "id"))),
     );
   },
 

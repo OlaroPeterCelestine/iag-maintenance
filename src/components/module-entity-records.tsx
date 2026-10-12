@@ -655,7 +655,7 @@ const technicianPicker = (on: string[]) => ({
     return { value, label: value, meta: [row.role, row.plant].filter(Boolean).join(" · ") || undefined };
   },
 });
-MAINTENANCE_RECORD_PICKERS.assignee = technicianPicker(["work-orders"]);
+MAINTENANCE_RECORD_PICKERS.assignee = technicianPicker(["work-orders", "fault-reports"]);
 MAINTENANCE_RECORD_PICKERS.technician = technicianPicker(["batch-records", "parts-used"]);
 // Spare parts from the warehouse, for booking out against a work order. The
 // meta says what is free now, so an empty store is visible before saving.
@@ -727,6 +727,31 @@ MAINTENANCE_RECORD_PICKERS.section = {
     };
   },
 };
+
+/**
+ * Maintenance forms that mean different things on create and edit. A fault
+ * report is written by whoever saw the fault and triaged by maintenance: the
+ * triage fields have nothing to say until it exists, and the report itself is
+ * not rewritten by the person triaging it. A work order's failure code and
+ * approval belong to work that exists.
+ */
+const MAINTENANCE_EDIT_ONLY_FIELDS: Record<string, string[]> = {
+  "fault-reports": ["decision", "priority", "assignee", "rejectedReason"],
+  "work-orders": [
+    "approvalDecision",
+    "approvalNote",
+    "failureProblem",
+    "failureCause",
+    "failureRemedy",
+    "failureNote",
+  ],
+};
+const MAINTENANCE_LOCKED_ON_EDIT: Record<string, string[]> = {
+  "fault-reports": ["workCenter", "title", "description", "machineStopped", "severity"],
+};
+function maintenanceFieldLocked(entityKey: string, fieldKey: string, mode: string | undefined) {
+  return mode === "edit" && Boolean(MAINTENANCE_LOCKED_ON_EDIT[entityKey]?.includes(fieldKey));
+}
 
 function maintenanceRecordOptions(fieldKey: string, values: Record<string, string> = {}) {
   const picker = MAINTENANCE_RECORD_PICKERS[fieldKey];
@@ -2812,6 +2837,10 @@ const MES_MAINTENANCE_ENTITIES = new Set([
   "labour-rates",
   "job-costs",
   "machine-costs",
+  "fault-reports",
+  "checklist-steps",
+  "meter-readings",
+  "failure-causes",
 ]);
 
 function supportsSaveAsDraft(entityKey: string) {
@@ -4213,6 +4242,9 @@ function RecordFormModal({
   }
 
   const visibleFields = formFields.filter((field) => {
+    if (state?.mode === "create" && MAINTENANCE_EDIT_ONLY_FIELDS[definition.key]?.includes(field.key)) {
+      return false;
+    }
     // Multi-currency opening balances use a dedicated control (not plain inputs).
     if (
       definition.key === "suppliers" &&
@@ -4611,7 +4643,10 @@ function RecordFormModal({
                 definition.key === "vehicles" && vehicleFieldPrefill[field.key]
                   ? `${field.key}-prefill-${vehiclePrefillTick}`
                   : field.key;
-              const fieldLocked = readOnly || Boolean(field.readOnly);
+              const fieldLocked =
+                readOnly ||
+                Boolean(field.readOnly) ||
+                maintenanceFieldLocked(definition.key, field.key, state?.mode);
               // Desk feedback (amend / reject) only appears when the record has a value.
               if (
                 field.readOnly &&
@@ -5133,7 +5168,10 @@ function RecordFormModal({
                 }
                 // A job card belongs to its work order for good; MES has no
                 // way to move one, so the picker locks once the card exists.
-                const locked = readOnly || (state?.mode === "edit" && field.key === "workOrder");
+                const locked =
+                  readOnly ||
+                  (state?.mode === "edit" && field.key === "workOrder") ||
+                  maintenanceFieldLocked(definition.key, field.key, state?.mode);
                 return (
                   <div key={field.key}>
                     <Label htmlFor={field.key} className="mb-2 text-[12px] text-slate-700">
@@ -5219,7 +5257,7 @@ function RecordFormModal({
                     <input type="hidden" name={field.key} value={current} />
                     <SearchablePicker
                       value={current}
-                      readOnly={readOnly}
+                      readOnly={readOnly || maintenanceFieldLocked(definition.key, field.key, state?.mode)}
                       allowClear={!field.required}
                       allowCustom
                       customLabel={(text) => `Use machine “${text}”`}

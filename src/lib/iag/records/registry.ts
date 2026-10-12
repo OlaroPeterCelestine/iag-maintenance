@@ -44,6 +44,12 @@ import { energy, machinePerformance } from "@/lib/iag/records/energy-kpis";
 import { plants, sections } from "@/lib/iag/records/factories";
 import { jobCosts, labourRates, machineCosts, partsUsed } from "@/lib/iag/records/maintenance-costs";
 import {
+  checklistSteps,
+  failureCauses,
+  faultReports,
+  meterReadings,
+} from "@/lib/iag/records/maintenance-phase2";
+import {
   attachmentRefs,
   attachmentsJson,
   isoDate,
@@ -440,6 +446,11 @@ export const RECORD_ADAPTERS: Record<string, RecordAdapter> = {
   "production:labour-rates": labourRates,
   "production:job-costs": jobCosts,
   "production:machine-costs": machineCosts,
+  // Phase 2 (src/lib/iag/records/maintenance-phase2.ts)
+  "production:fault-reports": faultReports,
+  "production:checklist-steps": checklistSteps,
+  "production:meter-readings": meterReadings,
+  "production:failure-causes": failureCauses,
   // Picker only, no tab: who a work order can be assigned to.
   "production:technicians": technicians,
   // warehouse — spare parts are warehouse items (material_class spare_part)
