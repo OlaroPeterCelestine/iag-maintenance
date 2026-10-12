@@ -4,6 +4,7 @@
  * Browser memory is only a short-lived working copy for the open tab.
  */
 
+import { canQueueOffline, deviceOffline, enqueue, neverReachedServer } from "@/lib/offline-outbox";
 import type { ManagerRecord } from "@/lib/manager-entities";
 import { entityDefinitions } from "@/lib/manager-entities";
 import type { AccountBalance, AccountType, LedgerAccount, LedgerLine } from "@/lib/ledger/types";
@@ -884,7 +885,14 @@ function forgetEntityRevision(moduleSlug: string, entityKey: string) {
 }
 
 export type ItemWriteResult =
-  | { ok: true; record: ManagerRecord | null; ledgerPosted?: boolean; ledgerError?: string }
+  | {
+      ok: true;
+      record: ManagerRecord | null;
+      ledgerPosted?: boolean;
+      ledgerError?: string;
+      /** Kept on the device to send when the connection returns (offline-outbox.ts). */
+      queuedOffline?: boolean;
+    }
   | { ok: false; error: string; code?: string };
 
 type ItemWriteBody = {
@@ -929,9 +937,29 @@ async function itemWrite(
   // Save twice" (the latter is a separate itemWrite() call with its own key,
   // caught client-side by the in-flight guards in module-entity-records.tsx).
   const idempotencyKey = request.method === "POST" ? crypto.randomUUID() : undefined;
+  // Floor entities (job cards, fault reports, meter readings, checklist
+  // steps) are kept on the device when the save cannot leave it
+  // (src/lib/offline-outbox.ts) instead of failing after five retries.
+  const offlineCapable =
+    request.method !== "DELETE" && canQueueOffline(moduleSlug, entityKey, request.method);
+  const queueOffline = (): ItemWriteResult => {
+    const payload = (request.payload ?? {}) as ManagerRecord;
+    enqueue({
+      module: moduleSlug,
+      entity: entityKey,
+      method: request.method as "POST" | "PATCH",
+      recordId: request.id,
+      payload,
+    });
+    const waiting = { ...payload, id: payload.id || request.id || "", status: "Waiting to send" } as ManagerRecord;
+    setMemoryRecords(moduleSlug, entityKey, applyToMemory(getMemoryRecords(moduleSlug, entityKey), waiting));
+    return { ok: true, record: waiting, queuedOffline: true };
+  };
+  if (offlineCapable && deviceOffline()) return queueOffline();
   return enqueuePersist(recordsPersistKey(moduleSlug, entityKey), async () => {
     lastRecordsPersistError = "";
     let lastError = "";
+    let lastErr: unknown = null;
     for (let attempt = 0; attempt < PERSIST_RETRIES; attempt++) {
       try {
         const res = await apiFetch(recordsPath(moduleSlug, entityKey, request.id), {
@@ -986,13 +1014,17 @@ async function itemWrite(
         };
       } catch (err) {
         lastError = err instanceof Error ? err.message : String(err);
+        lastErr = err;
         clearDbSyncCache();
+        // The connection went mid-save: keep it on the device, don't retry into nothing.
+        if (offlineCapable && neverReachedServer(err)) return queueOffline();
         if (/\(401\)/.test(lastError) || /Sign in required/i.test(lastError)) break;
         if (attempt < PERSIST_RETRIES - 1) {
           await sleep(400 * (attempt + 1) * (attempt + 1));
         }
       }
     }
+    if (offlineCapable && lastErr && neverReachedServer(lastErr)) return queueOffline();
     lastRecordsPersistError = lastError || "Could not save to the database.";
     notifyPersistFailed({
       kind: "records",

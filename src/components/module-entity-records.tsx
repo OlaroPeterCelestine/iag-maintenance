@@ -674,10 +674,10 @@ MAINTENANCE_RECORD_PICKERS.parentMachine = {
   },
 };
 MAINTENANCE_RECORD_PICKERS.technician = technicianPicker(["batch-records", "parts-used"]);
-// Spare parts from the warehouse, for booking out against a work order. The
-// meta says what is free now, so an empty store is visible before saving.
+// Spare parts from the warehouse, for booking out against a work order or
+// asking procurement for more. The meta says what is free now.
 MAINTENANCE_RECORD_PICKERS.part = {
-  on: ["parts-used"],
+  on: ["parts-used", "purchase-requests"],
   entity: "spare-parts",
   placeholder: "Select spare part…",
   empty: "No spare parts yet — add them under Spare Parts.",
@@ -690,6 +690,17 @@ MAINTENANCE_RECORD_PICKERS.part = {
       label: row.name && row.name !== value ? `${row.name} (${value})` : value,
       meta: [`${free} ${row.unit || ""} free`.trim(), row.fitsMachineTypes].filter(Boolean).join(" · "),
     };
+  },
+};
+// Departments with a procurement budget, for a purchase request.
+MAINTENANCE_RECORD_PICKERS.department = {
+  on: ["purchase-requests"],
+  entity: "budget-departments",
+  placeholder: "Select department…",
+  empty: "No procurement budgets yet — procurement must create one first.",
+  option: (row: ManagerRecord) => {
+    const value = (row.name || "").trim();
+    return value ? { value, label: value, meta: [row.code, row.remaining ? `${row.remaining} left` : ""].filter(Boolean).join(" · ") } : null;
   },
 };
 // Technician roles, for a labour rate. A role nobody holds yet can be typed;
@@ -2855,6 +2866,8 @@ const MES_MAINTENANCE_ENTITIES = new Set([
   "job-costs",
   "machine-costs",
   "fault-reports",
+  "purchase-requests",
+  "budget-departments",
   "checklist-steps",
   "meter-readings",
   "failure-causes",

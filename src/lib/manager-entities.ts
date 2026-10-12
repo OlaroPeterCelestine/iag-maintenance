@@ -637,6 +637,33 @@ function maintenanceFields(value: string): EntityField[] | null {
       { key: "status", label: "Status", readOnly: true },
     ];
   }
+  if (value === "purchase requests" || value === "purchase-requests") {
+    return [
+      text("part", "Spare part", true),
+      number("qty", "Quantity", true),
+      // Only departments with a procurement budget are offered: procurement
+      // charges the request to it and refuses a department with none.
+      text("department", "Charge to department", true),
+      number("estimatedCost", "Estimated total cost"),
+      select("urgent", "Urgent?", ["No", "Yes"]),
+      { key: "reason", label: "Why", type: "textarea", placeholder: "e.g. At the reorder level; two needed for the huller rebuild" },
+      { key: "reference", label: "Request ref", readOnly: true },
+      { key: "docNo", label: "Requisition", readOnly: true },
+      { key: "date", label: "Raised", readOnly: true },
+      { key: "title", label: "What", readOnly: true },
+      { key: "requester", label: "Requested by", readOnly: true },
+      { key: "total", label: "Total", readOnly: true },
+      { key: "status", label: "Procurement status", readOnly: true },
+    ];
+  }
+  if (value === "budget departments" || value === "budget-departments") {
+    return [
+      { key: "name", label: "Department", readOnly: true },
+      { key: "code", label: "Budget", readOnly: true },
+      { key: "period", label: "Period", readOnly: true },
+      { key: "remaining", label: "Remaining", readOnly: true },
+    ];
+  }
   if (value === "fault reports" || value === "fault-reports") {
     return [
       text("workCenter", "Machine", true),
@@ -844,6 +871,7 @@ const MAINTENANCE_COLUMNS: Record<string, string[]> = {
   reliability: ["workCenter", "mtbfHours", "mttrHours", "availability", "failures", "status"],
   alerts: ["date", "severity", "workCenter", "message", "status"],
   recommendations: ["date", "title", "workCenter", "kind", "status"],
+  "purchase-requests": ["date", "docNo", "title", "department", "total", "status"],
   "fault-reports": ["date", "workCenter", "title", "machineStopped", "severity", "reportedBy", "workOrder", "status"],
   "checklist-steps": ["workOrder", "workCenter", "stepNo", "step", "result", "reading", "status"],
   "meter-readings": ["date", "workCenter", "hours"],
