@@ -599,11 +599,13 @@ const MAINTENANCE_RECORD_PICKERS: Record<
     dependsOn?: string;
     belongsTo?: (row: ManagerRecord) => string;
     dependsOnEmpty?: string;
+    /** Options that exist whatever the collection holds (e.g. "Everyone else"). */
+    fixed?: { value: string; label: string; meta?: string }[];
     option: (row: ManagerRecord) => { value: string; label: string; meta?: string } | null;
   }
 > = {
   workOrder: {
-    on: ["batch-records"],
+    on: ["batch-records", "parts-used"],
     entity: "work-orders",
     placeholder: "Select work order…",
     empty: "No open work orders — raise one under Work Orders first.",
@@ -654,13 +656,45 @@ const technicianPicker = (on: string[]) => ({
   },
 });
 MAINTENANCE_RECORD_PICKERS.assignee = technicianPicker(["work-orders"]);
-MAINTENANCE_RECORD_PICKERS.technician = technicianPicker(["batch-records"]);
+MAINTENANCE_RECORD_PICKERS.technician = technicianPicker(["batch-records", "parts-used"]);
+// Spare parts from the warehouse, for booking out against a work order. The
+// meta says what is free now, so an empty store is visible before saving.
+MAINTENANCE_RECORD_PICKERS.part = {
+  on: ["parts-used"],
+  entity: "spare-parts",
+  placeholder: "Select spare part…",
+  empty: "No spare parts yet — add them under Spare Parts.",
+  option: (row: ManagerRecord) => {
+    const value = (row.code || "").trim();
+    if (!value || /obsolete|blocked/i.test(row.status || "")) return null;
+    const free = (row.available || row.onHand || "0").trim();
+    return {
+      value,
+      label: row.name && row.name !== value ? `${row.name} (${value})` : value,
+      meta: [`${free} ${row.unit || ""} free`.trim(), row.fitsMachineTypes].filter(Boolean).join(" · "),
+    };
+  },
+};
+// Technician roles, for a labour rate. A role nobody holds yet can be typed;
+// "Everyone else" is the factory's rate for any role without its own.
+MAINTENANCE_RECORD_PICKERS.role = {
+  on: ["labour-rates"],
+  entity: "technicians",
+  placeholder: "Select role…",
+  empty: "No technician roles in MES — type one.",
+  allowCustom: true,
+  fixed: [{ value: "Everyone else", label: "Everyone else", meta: "Any role without its own rate" }],
+  option: (row: ManagerRecord) => {
+    const value = (row.role || "").trim();
+    return value ? { value, label: value } : null;
+  },
+};
 MAINTENANCE_RECORD_PICKERS.supervisor = technicianPicker(["work-centers"]);
 MAINTENANCE_RECORD_PICKERS.reportedBy = technicianPicker(["downtime-logs"]);
 // MES plants — factories: where a machine stands, which factory a shop floor
 // belongs to, and the meter an energy reading came from.
 MAINTENANCE_RECORD_PICKERS.plantCode = {
-  on: ["energy", "work-centers", "sections"],
+  on: ["energy", "work-centers", "sections", "labour-rates"],
   entity: "plants",
   placeholder: "Select factory…",
   empty: "No factories yet — add one under Factories.",
@@ -700,9 +734,17 @@ function maintenanceRecordOptions(fieldKey: string, values: Record<string, strin
   const parent = picker.dependsOn ? (values[picker.dependsOn] || "").trim() : "";
   if (picker.dependsOn && !parent) return [];
   const out: { value: string; label: string; meta?: string; searchText: string }[] = [];
+  const seen = new Set<string>();
+  for (const opt of picker.fixed || []) {
+    seen.add(opt.value);
+    out.push({ ...opt, searchText: `${opt.label} ${opt.meta || ""}` });
+  }
   for (const row of loadRecords("production", picker.entity)) {
     if (parent && picker.belongsTo && picker.belongsTo(row) !== parent) continue;
     const opt = picker.option(row);
+    // Several rows can name the same value (two technicians, one role).
+    if (opt && seen.has(opt.value)) continue;
+    if (opt) seen.add(opt.value);
     if (opt) out.push({ ...opt, searchText: `${opt.label} ${opt.meta || ""}` });
   }
   // Work orders newest first (WO-n); everything else alphabetical.
@@ -2766,6 +2808,10 @@ const MES_MAINTENANCE_ENTITIES = new Set([
   "machine-performance",
   "plants",
   "sections",
+  "parts-used",
+  "labour-rates",
+  "job-costs",
+  "machine-costs",
 ]);
 
 function supportsSaveAsDraft(entityKey: string) {

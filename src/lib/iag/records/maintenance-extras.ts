@@ -74,6 +74,15 @@ function splitTypes(value: unknown): string[] {
   );
 }
 
+/** Out / Low / OK — free stock against the reorder level. */
+export function stockLevel(available: unknown, reorderLevel: unknown): string {
+  const free = Number(available) || 0;
+  const min = Number(reorderLevel) || 0;
+  if (free <= 0) return "Out";
+  if (min > 0 && free <= min) return "Low";
+  return "OK";
+}
+
 function sparePartToRecord(
   row: Row,
   stock?: Row,
@@ -93,6 +102,7 @@ function sparePartToRecord(
     maxQty: str(pick(row, "max_qty")),
     onHand: stock ? money(pick(stock, "qty")) : "",
     available: stock ? money(pick(stock, "available")) : "",
+    stockLevel: stockLevel(stock ? pick(stock, "available") ?? pick(stock, "qty") : 0, pick(row, "min_qty")),
     storeLocation: str(extra.storeLocation),
     status: titleCase(str(pick(row, "status"))) || "Active",
     notes: str(extra.notes),
@@ -447,17 +457,21 @@ export const alerts: RecordAdapter = {
 
 /* ───────────────────────── recommendations ───────────────────────── */
 
+/** What each MES rule checks (internal/jobs/phase6.go). */
+const RULE_NAMES: Record<string, string> = {
+  predictive_maintenance: "Vibration over 4 mm/s",
+  performance: "OEE under 70%",
+  maintenance: "PM overdue",
+  energy: "Over 35% of energy at peak tariff",
+};
+
 function recommendationToRecord(row: Row): Omit<AppRecord, "id"> & { id?: string } {
-  const confidence = Number(pick(row, "confidence"));
   return {
     id: str(pick(row, "id")),
     date: isoDate(pick(row, "created_at")),
     title: str(pick(row, "title")),
     workCenter: str(pick(row, "asset_tag")),
-    kind: titleCase(str(pick(row, "kind"))),
-    confidence: Number.isFinite(confidence)
-      ? String(Math.round((confidence <= 1 ? confidence * 100 : confidence) * 10) / 10)
-      : "",
+    kind: RULE_NAMES[str(pick(row, "kind"))] || titleCase(str(pick(row, "kind"))),
     body: str(pick(row, "body")),
     status: titleCase(str(pick(row, "status"))),
     createdAt: str(pick(row, "created_at")),

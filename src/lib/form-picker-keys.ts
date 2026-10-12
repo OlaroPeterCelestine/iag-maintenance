@@ -203,6 +203,15 @@ const BY_ENTITY: Record<string, FormPickerRecordKey[]> = {
     { module: "production", entity: "sections" },
   ],
   sections: [{ module: "production", entity: "plants" }],
+  "parts-used": [
+    { module: "production", entity: "work-orders" },
+    { module: "production", entity: "spare-parts" },
+    { module: "production", entity: "technicians" },
+  ],
+  "labour-rates": [
+    { module: "production", entity: "plants" },
+    { module: "production", entity: "technicians" },
+  ],
   energy: [
     { module: "production", entity: "plants" },
     { module: "production", entity: "work-centers" },

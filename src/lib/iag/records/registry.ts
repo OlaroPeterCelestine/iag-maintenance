@@ -42,6 +42,7 @@ import {
 } from "@/lib/iag/records/maintenance-extras";
 import { energy, machinePerformance } from "@/lib/iag/records/energy-kpis";
 import { plants, sections } from "@/lib/iag/records/factories";
+import { jobCosts, labourRates, machineCosts, partsUsed } from "@/lib/iag/records/maintenance-costs";
 import {
   attachmentRefs,
   attachmentsJson,
@@ -434,6 +435,11 @@ export const RECORD_ADAPTERS: Record<string, RecordAdapter> = {
   "production:machine-performance": machinePerformance,
   "production:plants": plants,
   "production:sections": sections,
+  // What maintenance costs (src/lib/iag/records/maintenance-costs.ts)
+  "production:parts-used": partsUsed,
+  "production:labour-rates": labourRates,
+  "production:job-costs": jobCosts,
+  "production:machine-costs": machineCosts,
   // Picker only, no tab: who a work order can be assigned to.
   "production:technicians": technicians,
   // warehouse — spare parts are warehouse items (material_class spare_part)

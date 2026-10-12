@@ -188,6 +188,11 @@ export function entityKey(label: string) {
   // Factories and Shop Floors are the business words for MES plants and
   // sections. The stored keys stay: plant_code is on every machine and
   // reading, and the pickers and the adapter registry key on them.
+  // MES calls them AI recommendations; they are threshold rules, so the tab
+  // says what they are. The store stays recommendations.
+  if (lower === "suggestions") {
+    return "recommendations";
+  }
   if (lower === "factories" || lower === "factory") {
     return "plants";
   }
@@ -475,7 +480,10 @@ function maintenanceFields(value: string): EntityField[] | null {
       text("technician", "Technician", true),
       number("hours", "Hours booked", true),
       number("meterReading", "Meter / hour-meter reading"),
-      text("partsUsed", "Parts used"),
+      // Parts from the stores are booked under Parts Used, which takes them
+      // out of stock and costs them. This is for anything else worth noting.
+      text("partsUsed", "Other parts / notes"),
+      number("contractorCost", "Contractor cost"),
       number("completion", "Completion %"),
       // Moves the work order. Completed runs POST /complete on it.
       select("status", "Work order status", ["In Progress", "Completed", "Open"], true),
@@ -556,6 +564,9 @@ function maintenanceFields(value: string): EntityField[] | null {
       // Stock moves through warehouse receipts and issues, not this form.
       { key: "onHand", label: "On hand", readOnly: true },
       { key: "available", label: "Available", readOnly: true },
+      // Out / Low / OK against the reorder level — the warehouse's own
+      // low-stock list compares per bin, and misses a part with no stock at all.
+      { key: "stockLevel", label: "Stock level", readOnly: true },
       { key: "notes", label: "Notes", type: "textarea" },
     ];
   }
@@ -581,15 +592,83 @@ function maintenanceFields(value: string): EntityField[] | null {
       { key: "resolvedOn", label: "Resolved", readOnly: true },
     ];
   }
-  if (value === "recommendations") {
+  if (value === "recommendations" || value === "suggestions") {
+    // Raised by MES's threshold rules (vibration over 4 mm/s, OEE under 70%,
+    // PM overdue). The fixed "confidence" MES attaches is not a measurement,
+    // so it is not shown.
     return [
-      { key: "date", label: "Suggested", readOnly: true },
-      { key: "title", label: "Recommendation", readOnly: true },
+      { key: "date", label: "Raised", readOnly: true },
+      { key: "title", label: "Suggestion", readOnly: true },
       { key: "workCenter", label: "Machine", readOnly: true },
-      { key: "kind", label: "Kind", readOnly: true },
-      { key: "confidence", label: "Confidence %", readOnly: true },
-      { key: "body", label: "Detail", type: "textarea", readOnly: true },
+      { key: "kind", label: "Rule", readOnly: true },
+      { key: "body", label: "Why", type: "textarea", readOnly: true },
       { key: "status", label: "Status", readOnly: true },
+    ];
+  }
+  if (value === "parts used" || value === "parts-used") {
+    return [
+      text("workOrder", "Work order", true),
+      text("part", "Spare part", true),
+      number("qty", "Quantity", true),
+      {
+        key: "store",
+        label: "Take from store (bin)",
+        placeholder: "Leave blank — the store with enough stock is chosen",
+      },
+      text("technician", "Booked by"),
+      { key: "notes", label: "Notes", type: "textarea" },
+      { key: "workCenter", label: "Machine", readOnly: true },
+      { key: "date", label: "Booked on", readOnly: true },
+      { key: "partName", label: "Part name", readOnly: true },
+      { key: "unit", label: "Unit", readOnly: true },
+      { key: "unitCost", label: "Unit cost", readOnly: true },
+      { key: "totalCost", label: "Cost", readOnly: true },
+      { key: "currency", label: "Currency", readOnly: true },
+      { key: "status", label: "Cost basis", readOnly: true },
+    ];
+  }
+  if (value === "labour rates" || value === "labour-rates") {
+    return [
+      text("plantCode", "Factory", true),
+      { key: "role", label: "Technician role", required: true, placeholder: "e.g. Fitter — or Everyone else" },
+      number("hourlyRate", "Hourly rate", true),
+      { key: "currency", label: "Currency", placeholder: "UGX" },
+    ];
+  }
+  if (value === "job costs" || value === "job-costs") {
+    return [
+      { key: "workOrder", label: "Work order", readOnly: true },
+      { key: "title", label: "Job", readOnly: true },
+      { key: "workCenter", label: "Machine", readOnly: true },
+      { key: "plantCode", label: "Factory", readOnly: true },
+      { key: "date", label: "Date", readOnly: true },
+      { key: "technician", label: "Technician", readOnly: true },
+      { key: "hours", label: "Hours", readOnly: true },
+      { key: "labourCost", label: "Labour", readOnly: true },
+      { key: "partsCost", label: "Parts", readOnly: true },
+      { key: "contractorCost", label: "Contractor", readOnly: true },
+      { key: "totalCost", label: "Total", readOnly: true },
+      { key: "currency", label: "Currency", readOnly: true },
+      { key: "status", label: "Status", readOnly: true },
+      { key: "notes", label: "Gaps in the figure", type: "textarea", readOnly: true },
+    ];
+  }
+  if (value === "machine costs" || value === "machine-costs") {
+    return [
+      { key: "month", label: "Month", readOnly: true },
+      { key: "workCenter", label: "Machine", readOnly: true },
+      { key: "machineName", label: "Machine name", readOnly: true },
+      { key: "plantCode", label: "Factory", readOnly: true },
+      { key: "section", label: "Shop floor", readOnly: true },
+      { key: "jobs", label: "Jobs", readOnly: true },
+      { key: "hours", label: "Hours", readOnly: true },
+      { key: "labourCost", label: "Labour", readOnly: true },
+      { key: "partsCost", label: "Parts", readOnly: true },
+      { key: "contractorCost", label: "Contractor", readOnly: true },
+      { key: "totalCost", label: "Total", readOnly: true },
+      { key: "currency", label: "Currency", readOnly: true },
+      { key: "status", label: "Figure", readOnly: true },
+      { key: "notes", label: "Gaps in the figure", type: "textarea", readOnly: true },
     ];
   }
   if (value === "machine performance") {
@@ -673,10 +752,14 @@ const MAINTENANCE_COLUMNS: Record<string, string[]> = {
   "pm-templates": ["code", "name", "assetCategory", "intervalDays"],
   "pm-schedules": ["template", "workCenter", "nextDue", "lastDone", "status"],
   "downtime-logs": ["date", "startTime", "workCenter", "reason", "minutes", "status"],
-  "spare-parts": ["name", "code", "fitsMachineTypes", "onHand", "reorderLevel", "status"],
+  "spare-parts": ["name", "code", "fitsMachineTypes", "onHand", "reorderLevel", "stockLevel", "status"],
   reliability: ["workCenter", "mtbfHours", "mttrHours", "availability", "failures", "status"],
   alerts: ["date", "severity", "workCenter", "message", "status"],
-  recommendations: ["date", "title", "workCenter", "confidence", "status"],
+  recommendations: ["date", "title", "workCenter", "kind", "status"],
+  "parts-used": ["date", "workOrder", "workCenter", "part", "partName", "qty", "store", "totalCost", "status"],
+  "labour-rates": ["plantCode", "role", "hourlyRate", "currency"],
+  "job-costs": ["date", "workOrder", "workCenter", "hours", "labourCost", "partsCost", "contractorCost", "totalCost", "status"],
+  "machine-costs": ["month", "workCenter", "plantCode", "jobs", "hours", "labourCost", "partsCost", "contractorCost", "totalCost", "status"],
   "machine-performance": ["date", "scope", "kpi", "value", "target", "status"],
   energy: ["plant", "kwhTotal", "kwhPeak", "kwhStandard", "kwhOffPeak", "peakShare", "outputKg", "kwhPerKg", "status"],
 };

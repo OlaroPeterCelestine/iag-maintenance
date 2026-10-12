@@ -381,12 +381,13 @@ type JobCard = {
   hours?: string;
   meterReading?: string;
   partsUsed?: string;
+  contractorCost?: string;
   completion?: string;
   workDone?: string;
   attachments?: unknown;
 };
 
-function jobCardOf(row: Row): JobCard | null {
+export function jobCardOf(row: Row): JobCard | null {
   const extra = attrs(row);
   const card = extra.job_card;
   if (card && typeof card === "object" && !Array.isArray(card)) return card as JobCard;
@@ -420,6 +421,7 @@ export function jobCardToRecord(row: Row): Omit<AppRecord, "id"> & { id?: string
     hours: str(card.hours),
     meterReading: str(card.meterReading),
     partsUsed: str(card.partsUsed),
+    contractorCost: str(card.contractorCost),
     completion: str(card.completion),
     workDone: str(card.workDone),
     status: titleCase(str(pick(row, "status"))) || "Open",
@@ -435,6 +437,7 @@ const JOB_CARD_FIELDS = [
   "hours",
   "meterReading",
   "partsUsed",
+  "contractorCost",
   "completion",
   "workDone",
 ] as const;
