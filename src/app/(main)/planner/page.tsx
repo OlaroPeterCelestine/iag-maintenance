@@ -279,10 +279,20 @@ export default function PlannerPage() {
                           )}
                         >
                           {jobs.length ? (
-                            <p className={cn("mb-1 text-[11px]", load.over ? "font-semibold text-rose-700 dark:text-rose-300" : "text-slate-500")}>
-                              {load.over ? "⚠ Overbooked · " : ""}
-                              {load.hours} / {DAY_CAPACITY_HOURS} h
-                              {load.unestimated ? ` · ${load.unestimated} unestimated` : ""}
+                            <p className={cn("mb-1 flex justify-between gap-1 text-[11px]", load.over ? "font-semibold text-rose-700 dark:text-rose-300" : "text-slate-500")}>
+                              <span>
+                                {load.over ? "⚠ Overbooked · " : ""}
+                                {load.hours} / {DAY_CAPACITY_HOURS} h
+                                {load.unestimated ? ` · ${load.unestimated} unestimated` : ""}
+                              </span>
+                              {/* This technician's sheets for the day, one page each. */}
+                              <Link
+                                href={`/work-orders/print?nums=${encodeURIComponent(jobs.map((o) => String(o.num)).join(","))}`}
+                                className="font-normal text-sky-700 underline dark:text-sky-400"
+                                title={`Print ${jobs.length} job sheet${jobs.length === 1 ? "" : "s"}`}
+                              >
+                                Print
+                              </Link>
                             </p>
                           ) : null}
                           {jobs.map((o) => (

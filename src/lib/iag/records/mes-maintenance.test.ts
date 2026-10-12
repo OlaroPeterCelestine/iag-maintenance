@@ -569,3 +569,42 @@ describe("planning and machine details", () => {
     });
   });
 });
+
+describe("paper job sheets", () => {
+  it("work out labour hours from start and finish, across midnight too", async () => {
+    const { parseLabour } = await import("@/lib/iag/records/mes-maintenance");
+    expect(parseLabour('[{"technician":"Okello","start":"08:00","finish":"11:30"},{"technician":"Achan","hours":"2"},{"technician":"","hours":""}]'))
+      .toEqual([{ technician: "Okello", hours: 3.5, start: "08:00", finish: "11:30" }, { technician: "Achan", hours: 2 }]);
+    expect(parseLabour([{ technician: "Night", start: "22:00", finish: "02:00" }])[0].hours).toBe(4);
+    expect(() => parseLabour([{ hours: "2" }])).toThrow(/who did the work/);
+    expect(() => parseLabour([{ technician: "X", hours: "30" }])).toThrow(/between 0 and 24/);
+  });
+
+  it("store labour lines on the job card, with the hours as their total", async () => {
+    await RECORD_ADAPTERS["production:batch-records"].update!(
+      ctx,
+      "WO-7",
+      record({ labour: '[{"technician":"Okello","hours":"3"},{"technician":"Achan","hours":"1.5"}]' }),
+    );
+    const card = (writes()[0].body!.attrs as Record<string, Record<string, unknown>>).job_card;
+    expect(card.hours).toBe("4.5");
+    expect((card.labour as unknown[]).length).toBe(2);
+  });
+
+  it("sign off with the name from the paper, before completing", async () => {
+    await RECORD_ADAPTERS["production:work-orders"].update!(
+      ctx,
+      "WO-7",
+      record({ technicianSignedBy: "Okello", technicianSignedOn: "2026-10-13", status: "Completed" }),
+    );
+    const paths = writes().map((w) => w.path);
+    expect(paths.indexOf("/api/v1/work-orders/WO-7/signoff/technician")).toBeLessThan(paths.indexOf("/api/v1/work-orders/WO-7/complete"));
+    expect(writes().find((w) => w.path?.endsWith("/signoff/technician"))!.body).toEqual({ signed_by: "Okello", signed_on: "2026-10-13" });
+  });
+
+  it("leave production's batch records out of maintenance", async () => {
+    routes["/api/v1/work-orders"] = { items: [{ num: "WO-1", wo_type: "breakdown" }, { num: "WO-2", wo_type: "production" }] };
+    const rows = await RECORD_ADAPTERS["production:work-orders"].list(ctx);
+    expect(rows.map((r) => r.num)).toEqual(["WO-1"]);
+  });
+});

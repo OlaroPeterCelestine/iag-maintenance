@@ -161,7 +161,19 @@ export default function MachinePage() {
                         <span className="font-medium text-slate-900 dark:text-slate-50">{r.num || r.title}</span>
                         {r.num ? <span className="text-slate-500"> — {r.title}</span> : <span className="text-slate-500"> (fault report)</span>}
                       </span>
-                      <span className="shrink-0 text-slate-500">{r.status}</span>
+                      <span className="flex shrink-0 items-center gap-2 text-slate-500">
+                        {r.status}
+                        {r.num ? (
+                          <>
+                            <Link className="text-sky-700 underline dark:text-sky-400" href={`/work-orders/print?nums=${encodeURIComponent(String(r.num))}`}>
+                              Print
+                            </Link>
+                            <Link className="text-sky-700 underline dark:text-sky-400" href={`/work-orders/${encodeURIComponent(String(r.num))}/enter`}>
+                              Enter results
+                            </Link>
+                          </>
+                        ) : null}
+                      </span>
                     </div>
                   )}
                 />
