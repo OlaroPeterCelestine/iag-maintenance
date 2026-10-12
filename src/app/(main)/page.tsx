@@ -207,6 +207,9 @@ export default function MaintenanceDashboardPage() {
             { href: "/production?view=downtime-logs", label: "Downtime" },
             { href: "/production?view=reliability", label: "Reliability" },
             { href: "/production?view=alerts", label: "Alerts" },
+            { href: "/production?view=fault-reports", label: "Fault reports" },
+            { href: "/planner", label: "Planner" },
+            { href: "/machines/labels", label: "Machine QR labels" },
           ].map((item) => (
             <Link
               key={item.href}

@@ -526,3 +526,46 @@ describe("spare parts", () => {
     expect(RECORD_ADAPTERS["production:bill-of-materials"]).toBeUndefined();
   });
 });
+
+/* ───────────────────────────── phase 3 ───────────────────────────── */
+
+describe("planning and machine details", () => {
+  it("plan a job for a day, and take it back off the board and off a technician", async () => {
+    await RECORD_ADAPTERS["production:work-orders"].update!(ctx, "WO-7", record({ assignee: "Okello", plannedStart: "2026-10-13" }));
+    expect(writes()[0].body).toMatchObject({ assignee: "Okello", attrs: { plannedStart: "2026-10-13" } });
+    mockFetch.mockClear();
+    await RECORD_ADAPTERS["production:work-orders"].update!(ctx, "WO-7", record({ assignee: "", plannedStart: "" }));
+    expect(writes()[0].body).toMatchObject({ assignee: "", attrs: { plannedStart: "" } });
+    await expect(
+      RECORD_ADAPTERS["production:work-orders"].update!(ctx, "WO-7", record({ plannedStart: "next Tuesday" })),
+    ).rejects.toThrow(/Planned for is a date/);
+  });
+
+  it("refuse a machine that would be part of itself, or of its own part", async () => {
+    routes["/api/v1/assets"] = {
+      items: [
+        { tag: "HUL-1", attrs: {} },
+        { tag: "MTR-1", attrs: { parentMachine: "HUL-1" } },
+      ],
+    };
+    const adapter = RECORD_ADAPTERS["production:work-centers"];
+    await expect(adapter.update!(ctx, "HUL-1", record({ parentMachine: "HUL-1" }))).rejects.toThrow(/part of itself/);
+    await expect(adapter.update!(ctx, "HUL-1", record({ parentMachine: "MTR-1" }))).rejects.toThrow(/its own part/);
+    await expect(adapter.update!(ctx, "HUL-1", record({ parentMachine: "NOPE" }))).rejects.toThrow(/No machine "NOPE"/);
+  });
+
+  it("keep the nameplate in attrs without wiping what is there", async () => {
+    await RECORD_ADAPTERS["production:work-centers"].update!(
+      ctx,
+      "HUL-1",
+      record({ manufacturer: "Pinhalense", serialNumber: "SN-42", warrantyUntil: "2027-06-30" }),
+    );
+    expect(writes()[0].body!.attrs).toEqual({
+      supervisor: "Okello",
+      notes: "old note",
+      manufacturer: "Pinhalense",
+      serialNumber: "SN-42",
+      warrantyUntil: "2027-06-30",
+    });
+  });
+});
