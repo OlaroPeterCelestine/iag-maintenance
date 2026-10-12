@@ -656,6 +656,23 @@ const technicianPicker = (on: string[]) => ({
   },
 });
 MAINTENANCE_RECORD_PICKERS.assignee = technicianPicker(["work-orders", "fault-reports"]);
+// The machine this one is part of. Stores the asset tag, like every other
+// machine reference.
+MAINTENANCE_RECORD_PICKERS.parentMachine = {
+  on: ["work-centers"],
+  entity: "work-centers",
+  placeholder: "Select machine…",
+  empty: "No other machines yet.",
+  option: (row: ManagerRecord) => {
+    const value = (row.code || "").trim();
+    if (!value || statusMatchesInactive(row)) return null;
+    return {
+      value,
+      label: row.name && row.name !== value ? `${row.name} (${value})` : value,
+      meta: [row.plantCode, row.section].filter(Boolean).join(" / ") || undefined,
+    };
+  },
+};
 MAINTENANCE_RECORD_PICKERS.technician = technicianPicker(["batch-records", "parts-used"]);
 // Spare parts from the warehouse, for booking out against a work order. The
 // meta says what is free now, so an empty store is visible before saving.
@@ -8257,6 +8274,8 @@ function EntityRecordsWorkspace({
     const open = (searchParams.get("open") || "").trim();
     const wantNew = searchParams.get("new") === "1";
     const partyPrefill = (searchParams.get("party") || "").trim();
+    // From a machine's page (QR label): ?new=1&machine=TAG opens the form on it.
+    const machinePrefill = (searchParams.get("machine") || "").trim();
     const wantEdit =
       searchParams.get("edit") === "1" ||
       /^(edit|categorize)$/i.test(searchParams.get("mode") || "");
@@ -8265,10 +8284,10 @@ function EntityRecordsWorkspace({
     const moneyEntity = definition.key === "receipts" || definition.key === "payments";
 
     if (wantNew) {
-      const newKey = `new:${definition.key}:${partyPrefill}`;
+      const newKey = `new:${definition.key}:${partyPrefill}:${machinePrefill}`;
       if (openConsumedRef.current === newKey) return;
       openConsumedRef.current = newKey;
-      const seed = partyPrefill
+      const seed: ManagerRecord | null = partyPrefill
         ? ({
             id: "",
             createdAt: "",
@@ -8276,11 +8295,14 @@ function EntityRecordsWorkspace({
             party: partyPrefill,
             supplier: partyPrefill,
           } satisfies ManagerRecord)
-        : null;
+        : machinePrefill
+          ? ({ id: "", createdAt: "", updatedAt: "", workCenter: machinePrefill } satisfies ManagerRecord)
+          : null;
       setEditor({ mode: "create", record: seed });
       const params = new URLSearchParams(searchParams.toString());
       params.delete("new");
       params.delete("party");
+      params.delete("machine");
       const qs = params.toString();
       router.replace(`/${config.slug}${qs ? `?${qs}` : `?view=${definition.key}`}`);
       return;

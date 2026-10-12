@@ -441,6 +441,14 @@ function maintenanceFields(value: string): EntityField[] | null {
       number("capacityPerHour", "Rated output per hour"),
       date("purchasedOn", "Purchased on"),
       text("supervisor", "Responsible technician"),
+      // Nameplate and history.
+      text("manufacturer", "Manufacturer"),
+      text("model", "Model"),
+      text("serialNumber", "Serial number"),
+      date("installedOn", "Installed on"),
+      date("warrantyUntil", "Warranty until"),
+      // A motor on a huller, a pump on a washing line: the machine it is part of.
+      text("parentMachine", "Part of machine"),
       { key: "notes", label: "Notes", type: "textarea" },
     ];
   }
@@ -461,6 +469,8 @@ function maintenanceFields(value: string): EntityField[] | null {
       select("priority", "Priority", ["Medium", "High", "Critical", "Low"], true),
       date("dueDate", "Due"),
       text("assignee", "Assigned technician"),
+      // Set on the Planner board, or here.
+      date("plannedStart", "Planned for"),
       // mes_work_orders.status CHECK. Completed goes through POST /complete,
       // which stamps completed_at and advances the PM schedule behind it.
       select("status", "Status", ["Open", "Draft", "Scheduled", "In Progress", "Completed", "Cancelled"], true),
@@ -634,6 +644,7 @@ function maintenanceFields(value: string): EntityField[] | null {
       select("machineStopped", "Has the machine stopped?", ["No", "Yes"], true),
       select("severity", "How serious", ["Warning", "Critical", "Info"]),
       { key: "description", label: "What you saw", type: "textarea" },
+      { key: "attachments", label: "Photos", type: "attachments" },
       { key: "date", label: "Reported", readOnly: true },
       { key: "reportedBy", label: "Reported by", readOnly: true },
       { key: "status", label: "Status", readOnly: true },

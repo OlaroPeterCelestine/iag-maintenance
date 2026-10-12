@@ -233,6 +233,8 @@ export function workOrderToRecord(row: Row): Omit<AppRecord, "id"> & { id?: stri
     status: titleCase(str(pick(row, "status"))) || "Open",
     completedOn: isoDate(pick(row, "completed_at")),
     estimatedHours: str(extra.estimatedHours),
+    // The day it is planned for, on the scheduling board (YYYY-MM-DD).
+    plannedStart: str(extra.plannedStart),
     partsRequired: str(extra.partsRequired),
     estimatedCost: str(extra.estimatedCost),
     description: str(extra.description),
@@ -249,6 +251,19 @@ export function workOrderToRecord(row: Row): Omit<AppRecord, "id"> & { id?: stri
 
 /** The editable part of a work order, as a WorkOrderPatch. Partial-safe. */
 function workOrderPatchBody(record: AppRecord): Record<string, unknown> {
+  const body = workOrderPatchFields(record);
+  // An emptied "Planned for" takes the job back off the board. attrsOrOmit
+  // drops empty strings, so the clear is put back explicitly; MES merges attrs
+  // key by key.
+  if (record.plannedStart !== undefined && !str(record.plannedStart).trim()) {
+    body.attrs = { ...((body.attrs as Record<string, unknown>) || {}), plannedStart: "" };
+  }
+  // Likewise an emptied assignee: the board's Unassigned row.
+  if (record.assignee !== undefined && !str(record.assignee).trim()) body.assignee = "";
+  return body;
+}
+
+function workOrderPatchFields(record: AppRecord): Record<string, unknown> {
   return omitEmpty({
     title: record.title,
     priority: priorityForService(record.priority),
@@ -258,12 +273,21 @@ function workOrderPatchBody(record: AppRecord): Record<string, unknown> {
     // MES merges attrs key by key on PATCH, so a partial bag is safe here.
     attrs: attrsOrOmit({
       estimatedHours: record.estimatedHours,
+      plannedStart: plannedDay(record.plannedStart),
       partsRequired: record.partsRequired,
       estimatedCost: record.estimatedCost,
       description: record.description,
       attachments: attachmentRefs(record.attachments),
     }),
   });
+}
+
+/** A planned day, YYYY-MM-DD, or undefined. Anything else is refused. */
+function plannedDay(value: unknown): string | undefined {
+  const v = str(value).trim().slice(0, 10);
+  if (!v) return undefined;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) throw new InputError("Planned for is a date (YYYY-MM-DD).");
+  return v;
 }
 
 async function completeWorkOrder(num: string): Promise<Row | null> {
@@ -398,6 +422,7 @@ export const workOrders: RecordAdapter = {
         due_at: rfc3339(record.dueDate),
         attrs: attrsOrOmit({
           estimatedHours: record.estimatedHours,
+          plannedStart: plannedDay(record.plannedStart),
           partsRequired: record.partsRequired,
           estimatedCost: record.estimatedCost,
           description: record.description,
@@ -927,9 +952,62 @@ function assetToRecord(row: Row): Omit<AppRecord, "id"> & { id?: string } {
     purchasedOn: isoDate(pick(row, "purchased_on")),
     supervisor: str(pick(extra, "supervisor")),
     notes: str(pick(extra, "notes")),
+    // Nameplate and history (attrs): what it is, where it came from, and the
+    // machine it is part of, if any.
+    ...Object.fromEntries(MACHINE_DETAIL_FIELDS.map((k) => [k, str(pick(extra, k))])),
     createdAt: str(pick(row, "created_at")),
     updatedAt: str(pick(row, "updated_at")),
   };
+}
+
+/** Machine details kept in attrs, by form key. */
+export const MACHINE_DETAIL_FIELDS = [
+  "manufacturer",
+  "model",
+  "serialNumber",
+  "installedOn",
+  "warrantyUntil",
+  "parentMachine",
+] as const;
+
+/**
+ * A parent must exist, must not be the machine itself, and must not sit
+ * under it — a loop would make "what is this part of" unanswerable.
+ */
+export function checkParent(tag: string, parent: string, assetsByTag: Map<string, Row>): void {
+  const p = parent.trim();
+  if (!p) return;
+  if (p.toLowerCase() === tag.toLowerCase()) throw new InputError("A machine cannot be part of itself.");
+  if (!assetsByTag.has(p)) throw new InputError(`No machine "${p}" to be part of.`);
+  const seen = new Set<string>([tag.toLowerCase()]);
+  let cur: string | undefined = p;
+  while (cur) {
+    if (seen.has(cur.toLowerCase())) {
+      throw new InputError(`${p} is already part of ${tag}; a machine cannot be part of its own part.`);
+    }
+    seen.add(cur.toLowerCase());
+    const row = assetsByTag.get(cur);
+    cur = row ? str(pick(attrs(row), "parentMachine")) || undefined : undefined;
+  }
+}
+
+async function assetsByTag(): Promise<Map<string, Row>> {
+  const rows = unwrapList<Row>(await gatewayFetch({ service: "mes", path: "/api/v1/assets" }));
+  return new Map(rows.map((r) => [str(pick(r, "tag")), r]));
+}
+
+function detailAttrs(record: AppRecord): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const k of MACHINE_DETAIL_FIELDS) {
+    if (record[k] !== undefined) out[k] = str(record[k]).trim();
+  }
+  for (const k of ["installedOn", "warrantyUntil"] as const) {
+    const v = out[k];
+    if (typeof v === "string" && v && !/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+      throw new InputError(`${k === "installedOn" ? "Installed on" : "Warranty until"} is a date (YYYY-MM-DD).`);
+    }
+  }
+  return out;
 }
 
 function assetTag(record: AppRecord): string {
@@ -1016,6 +1094,7 @@ export const assets: RecordAdapter = {
   async create(_ctx, record) {
     const tag = assetTag(record);
     if (!tag) throw new InputError("Give the machine an asset code.");
+    if (str(record.parentMachine).trim()) checkParent(tag, str(record.parentMachine), await assetsByTag());
     const sectionId = await resolveSectionId(record);
     const payload = await gatewayFetch({
       service: "mes",
@@ -1031,7 +1110,7 @@ export const assets: RecordAdapter = {
         location: record.location,
         capacity: numberOrUndefined(record.capacityPerHour),
         purchased_on: rfc3339(record.purchasedOn),
-        attrs: attrsOrOmit({ supervisor: record.supervisor, notes: record.notes }),
+        attrs: attrsOrOmit({ supervisor: record.supervisor, notes: record.notes, ...detailAttrs(record) }),
       }),
     });
     const row = unwrapOne<Row>(payload);
@@ -1082,8 +1161,12 @@ export const assets: RecordAdapter = {
         )
       : undefined;
     let mergedAttrs: Record<string, unknown> | undefined;
-    if (record.supervisor !== undefined || record.notes !== undefined) {
-      mergedAttrs = { ...attrs(current) };
+    const details = detailAttrs(record);
+    if (details.parentMachine && details.parentMachine !== str(pick(attrs(current), "parentMachine"))) {
+      checkParent(id, str(details.parentMachine), await assetsByTag());
+    }
+    if (record.supervisor !== undefined || record.notes !== undefined || Object.keys(details).length) {
+      mergedAttrs = { ...attrs(current), ...details };
       if (record.supervisor !== undefined) mergedAttrs.supervisor = record.supervisor;
       if (record.notes !== undefined) mergedAttrs.notes = record.notes;
     }

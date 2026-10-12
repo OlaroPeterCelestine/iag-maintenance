@@ -16,6 +16,8 @@
 import { GatewayError, gatewayFetch, unwrapList, unwrapOne } from "@/lib/iag/gateway";
 import {
   InputError,
+  attachmentRefs,
+  attachmentsJson,
   isoDate,
   omitEmpty,
   pick,
@@ -96,6 +98,7 @@ export function faultReportToRecord(row: Row): Omit<AppRecord, "id"> & { id?: st
     workOrder: str(extra.work_order),
     triagedBy: str(extra.triaged_by),
     rejectedReason: str(extra.rejected_reason),
+    attachments: attachmentsJson(extra.attachments),
     status: REPORT_STATUS[str(pick(row, "status"))] || str(pick(row, "status")),
     createdAt: str(pick(row, "occurred_at")),
     updatedAt: str(pick(row, "resolved_at", "acknowledged_at", "occurred_at")),
@@ -154,6 +157,8 @@ export const faultReports: RecordAdapter = {
           description: str(record.description).trim() || undefined,
           machine_stopped: yes(record.machineStopped),
           severity: severityForService(record.severity),
+          // Photos go to the document service first; MES keeps the references.
+          attachments: attachmentRefs(record.attachments),
         }),
       }),
     );
