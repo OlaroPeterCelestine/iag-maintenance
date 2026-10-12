@@ -18,6 +18,7 @@ import {
   PLATFORM_TOKEN_COOKIE,
 } from "@/lib/iag/config";
 import { GatewayError, requestToken, type TokenResponse } from "@/lib/iag/gateway";
+import { tokenCookieNames, writeTokenCookie } from "@/lib/iag/token-cookie";
 import {
   appRoleFromClaims,
   decodePlatformToken,
@@ -185,11 +186,6 @@ export async function createAppSession(
     { expiresIn },
   );
 
-  const accessMaxAge =
-    session.tokens.expires_in && session.tokens.expires_in > 0
-      ? session.tokens.expires_in
-      : 3600;
-
   const cookies: SessionCookie[] = [
     {
       name: API_TOKEN_COOKIE,
@@ -199,7 +195,11 @@ export async function createAppSession(
     {
       name: PLATFORM_TOKEN_COOKIE,
       value: session.tokens.access_token,
-      options: platformCookieOptions(accessMaxAge),
+      // Keep the cookie for the app session, not the short JWT lifetime. The
+      // browser was deleting iag_pt when the access token expired, and the
+      // next platform call then had no bearer. gateway.ts refreshes from the
+      // JWT `exp` while the cookie is still here.
+      options: platformCookieOptions(appMaxAge),
     },
   ];
   if (session.tokens.refresh_token) {
@@ -216,18 +216,28 @@ export async function createAppSession(
 
 export function applyCookies(res: NextResponse, cookies: SessionCookie[]) {
   for (const cookie of cookies) {
+    if (cookie.name === PLATFORM_TOKEN_COOKIE || cookie.name === PLATFORM_REFRESH_COOKIE) {
+      writeTokenCookie(
+        (name, value, options) => res.cookies.set(name, value, options),
+        cookie.name,
+        cookie.value,
+        cookie.options,
+      );
+      continue;
+    }
     res.cookies.set(cookie.name, cookie.value, cookie.options);
   }
 }
 
-/** Clear every session cookie this app sets. */
+/** Clear every session cookie this app sets, including token chunks. */
 export function clearSessionCookies(res: NextResponse) {
+  const gone = { ...platformCookieOptions(0), maxAge: 0 };
+  res.cookies.set(API_TOKEN_COOKIE, "", gone);
   for (const name of [
-    API_TOKEN_COOKIE,
-    PLATFORM_TOKEN_COOKIE,
-    PLATFORM_REFRESH_COOKIE,
+    ...tokenCookieNames(PLATFORM_TOKEN_COOKIE),
+    ...tokenCookieNames(PLATFORM_REFRESH_COOKIE),
   ]) {
-    res.cookies.set(name, "", { ...platformCookieOptions(0), maxAge: 0 });
+    res.cookies.set(name, "", gone);
   }
 }
 

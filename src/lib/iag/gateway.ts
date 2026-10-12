@@ -17,6 +17,7 @@ import {
   oauthClient,
   type ServiceKey,
 } from "@/lib/iag/config";
+import { readTokenCookie, writeTokenCookie } from "@/lib/iag/token-cookie";
 
 export class GatewayError extends Error {
   readonly status: number;
@@ -131,11 +132,17 @@ async function persistRefreshed(entry: Refreshed) {
       sameSite: "lax" as const,
       path: "/",
     };
-    jar.set(PLATFORM_TOKEN_COOKIE, entry.access, { ...options, maxAge });
+    const set = (
+      name: string,
+      value: string,
+      cookieOptions: { httpOnly: boolean; secure: boolean; sameSite: "lax"; path: string; maxAge: number },
+    ) => jar.set(name, value, cookieOptions);
+    writeTokenCookie(set, PLATFORM_TOKEN_COOKIE, entry.access, { ...options, maxAge });
     // A rotated refresh token replaces the cookie; it is bounded to the app
     // session length the way login bounds it (see createAppSession).
-    if (jar.get(PLATFORM_REFRESH_COOKIE)?.value !== entry.refresh) {
-      jar.set(PLATFORM_REFRESH_COOKIE, entry.refresh, {
+    const currentRefresh = readTokenCookie((name) => jar.get(name)?.value, PLATFORM_REFRESH_COOKIE);
+    if (currentRefresh !== entry.refresh) {
+      writeTokenCookie(set, PLATFORM_REFRESH_COOKIE, entry.refresh, {
         ...options,
         maxAge: expirySecondsFromString(keepSignedInExpiry()),
       });
@@ -149,7 +156,7 @@ async function persistRefreshed(entry: Refreshed) {
 async function readRefreshToken(): Promise<string | null> {
   try {
     const jar = await cookies();
-    return jar.get(PLATFORM_REFRESH_COOKIE)?.value || null;
+    return readTokenCookie((name) => jar.get(name)?.value, PLATFORM_REFRESH_COOKIE);
   } catch {
     return null;
   }
@@ -159,7 +166,7 @@ async function readPlatformToken(): Promise<string | null> {
   let cookieToken: string | null = null;
   try {
     const jar = await cookies();
-    cookieToken = jar.get(PLATFORM_TOKEN_COOKIE)?.value || null;
+    cookieToken = readTokenCookie((name) => jar.get(name)?.value, PLATFORM_TOKEN_COOKIE);
   } catch {
     cookieToken = null;
   }

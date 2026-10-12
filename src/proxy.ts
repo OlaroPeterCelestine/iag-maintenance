@@ -304,7 +304,13 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next({ request: { headers } });
   }
 
-  // Next-only routes (realtime, etc.): require a verified JWT.
+  // Next-only routes (records, dashboards, …): require a verified JWT.
+  //
+  // Do not copy the request headers onto the forwarded request. Next stores
+  // that copy in `x-middleware-request-*`, and a platform token cookie is large
+  // enough that the copy is dropped. The override then deletes the original
+  // Cookie header, so the page still sees the small app JWT and calls the
+  // platform with no bearer. The route verifies the cookie itself.
   if (!claims || !verifiedToken) {
     return NextResponse.json(
       {
@@ -314,14 +320,7 @@ export async function proxy(request: NextRequest) {
       { status: 401 },
     );
   }
-  const headers = new Headers(request.headers);
-  headers.set("Authorization", `Bearer ${verifiedToken}`);
-  headers.set("x-auth-mode", "jwt");
-  headers.set("x-user-id", claims.uid);
-  headers.set("x-user-email", claims.email);
-  headers.set("x-user-username", claims.username);
-  headers.set("x-user-role", claims.role);
-  return NextResponse.next({ request: { headers } });
+  return NextResponse.next();
 }
 
 export const config = {

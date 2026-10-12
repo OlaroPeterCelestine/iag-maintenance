@@ -89,6 +89,17 @@ describe("platform token refresh", () => {
     expect(calls.map((c) => c.url.split("/").pop())).toEqual(["token", "outlets"]);
   });
 
+  it("sends a platform token that only fits across cookie chunks", async () => {
+    const live = jwt(Math.floor(Date.now() / 1000) + 900);
+    jar.set("iag_pt.0", live.slice(0, 20));
+    jar.set("iag_pt.1", live.slice(20));
+    const { gatewayFetch } = await import("@/lib/iag/gateway");
+    await expect(gatewayFetch({ service: "dms", path: "/api/v1/outlets" })).resolves.toEqual({
+      data: [{ id: "row" }],
+    });
+    expect(tokenGrants).toBe(0);
+  });
+
   it("does not hammer the token endpoint after a failed refresh", async () => {
     jar.set("iag_pt", jwt(Math.floor(Date.now() / 1000) - 60));
     jar.set("iag_rt", "rt-revoked");
