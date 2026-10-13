@@ -608,3 +608,126 @@ describe("paper job sheets", () => {
     expect(rows.map((r) => r.num)).toEqual(["WO-1"]);
   });
 });
+
+/* ──────────────────── installation and commissioning ──────────────────── */
+
+describe("installation and commissioning", () => {
+  it("send acceptance tests with their limits, and the installation facts, on a new job", async () => {
+    await RECORD_ADAPTERS["production:work-orders"].create!(
+      ctx,
+      record({
+        title: "Commission Huller 3",
+        workCenter: "HUL-1",
+        woType: "Commissioning",
+        priority: "Medium",
+        status: "Open",
+        checklist: "Guards fitted\nMotor current at full load [10–14 A]",
+        contractor: "Agro Engineering",
+        warrantyMonths: "12",
+      }),
+    );
+    const body = writes()[0].body!;
+    expect(body.wo_type).toBe("commissioning");
+    expect(body.attrs).toMatchObject({
+      contractor: "Agro Engineering",
+      warranty_months: 12,
+      checklist: ["Guards fitted", { step: "Motor current at full load", min: 10, max: 14, unit: "A" }],
+    });
+  });
+
+  it("sign the handover installer first, then the acceptors, before completing", async () => {
+    await RECORD_ADAPTERS["production:work-orders"].update!(
+      ctx,
+      "WO-8",
+      record({
+        installerSignedBy: "Odongo",
+        installerCompany: "Agro Engineering",
+        engineeringSignedBy: "Mukasa",
+        engineeringSignedOn: "2026-10-13",
+        productionSignedBy: "Achan",
+        status: "Completed",
+      }),
+    );
+    const posts = writes().filter((c) => c.method === "POST").map((c) => c.path);
+    expect(posts).toEqual([
+      "/api/v1/work-orders/WO-8/handover/installer",
+      "/api/v1/work-orders/WO-8/handover/engineering",
+      "/api/v1/work-orders/WO-8/handover/production",
+      "/api/v1/work-orders/WO-8/complete",
+    ]);
+    expect(writes().find((c) => c.path?.endsWith("/installer"))?.body).toEqual({ signed_by: "Odongo", company: "Agro Engineering" });
+    expect(writes().find((c) => c.path?.endsWith("/engineering"))?.body).toEqual({ signed_by: "Mukasa", signed_on: "2026-10-13" });
+  });
+
+  it("do not sign again for a name already on the handover", async () => {
+    routes["/api/v1/work-orders/WO-8"] = {
+      num: "WO-8",
+      wo_type: "commissioning",
+      status: "open",
+      attrs: { handover: { installer: { by: "Odongo" } } },
+    };
+    await RECORD_ADAPTERS["production:work-orders"].update!(ctx, "WO-8", record({ installerSignedBy: "odongo", title: "x" }));
+    expect(writes().some((c) => c.path?.includes("/handover/"))).toBe(false);
+  });
+
+  it("let a checklist change until a step is marked, then refuse", async () => {
+    routes["/api/v1/work-orders/WO-8"] = { num: "WO-8", status: "open", attrs: { checklist: ["Guards fitted"] } };
+    await RECORD_ADAPTERS["production:work-orders"].update!(ctx, "WO-8", record({ checklist: "Guards fitted\nRuns [max 70 °C]" }));
+    expect(writes()[0].body?.checklist).toEqual(["Guards fitted", { step: "Runs", max: 70, unit: "°C" }]);
+
+    mockFetch.mockClear();
+    routes["/api/v1/work-orders/WO-8"] = {
+      num: "WO-8",
+      status: "open",
+      attrs: { checklist: ["Guards fitted"], checklist_results: [{ index: 0, result: "pass" }] },
+    };
+    await expect(
+      RECORD_ADAPTERS["production:work-orders"].update!(ctx, "WO-8", record({ checklist: "Something else" })),
+    ).rejects.toThrow(/already been marked/);
+    // The same checklist sent back unchanged (every edit form does) is fine.
+    await RECORD_ADAPTERS["production:work-orders"].update!(ctx, "WO-8", record({ checklist: "Guards fitted", title: "y" }));
+    expect(writes().at(-1)?.body).not.toHaveProperty("checklist");
+  });
+
+  it("raise the installation job for a new machine that still has to go in", async () => {
+    await RECORD_ADAPTERS["production:work-centers"].create!(
+      ctx,
+      record({ code: "HUL-9", name: "Huller 9", plantCode: "mbale", section: "MILL", status: "Idle", putIntoService: "Installation, then commissioning" }),
+    );
+    const posts = writes().filter((c) => c.method === "POST");
+    expect(posts.map((c) => c.path)).toEqual(["/api/v1/assets", "/api/v1/work-orders"]);
+    expect(posts[1].body).toMatchObject({ asset_tag: "HUL-9", wo_type: "installation", title: "Install Huller 9", status: "open" });
+
+    mockFetch.mockClear();
+    await RECORD_ADAPTERS["production:work-centers"].create!(
+      ctx,
+      record({ code: "HUL-10", name: "Huller 10", plantCode: "mbale", section: "MILL", status: "Idle", putIntoService: "Already in service" }),
+    );
+    expect(writes().map((c) => c.path)).toEqual(["/api/v1/assets"]);
+  });
+});
+
+describe("PM templates for planning", () => {
+  it("keep fixed dates on a new template unless told otherwise, and send hours and crew", async () => {
+    await RECORD_ADAPTERS["production:pm-templates"].create!(
+      ctx,
+      record({ code: "PM-X", name: "Monthly", intervalDays: "30", estimatedHours: "2.5", crewSize: "2" }),
+    );
+    expect(writes()[0].body?.attrs).toEqual({ kind: "preventive", estimated_hours: 2.5, crew_size: 2, fixed_dates: true });
+  });
+
+  it("make a commissioning template, and clear hours on an edit", async () => {
+    await RECORD_ADAPTERS["production:pm-templates"].create!(
+      ctx,
+      record({ code: "COM-H", name: "Huller commissioning", intervalDays: "30", kind: "Commissioning", fixedDates: "No — count from when it was done" }),
+    );
+    expect(writes()[0].body?.attrs).toMatchObject({ kind: "commissioning", fixed_dates: false });
+
+    mockFetch.mockClear();
+    await RECORD_ADAPTERS["production:pm-templates"].update!(ctx, "tpl-1", record({ code: "PM-GREASE", estimatedHours: "", crewSize: "3" }));
+    expect(writes()[0].body?.attrs).toEqual({ estimated_hours: 0, crew_size: 3 });
+    await expect(
+      RECORD_ADAPTERS["production:pm-templates"].update!(ctx, "tpl-1", record({ code: "PM-GREASE", crewSize: "lots" })),
+    ).rejects.toThrow(/People per job/);
+  });
+});

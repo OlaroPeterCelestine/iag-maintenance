@@ -7,6 +7,7 @@
  * screen for this job.
  */
 import { FAILURE_CAUSES, FAILURE_PROBLEMS, FAILURE_REMEDIES } from "@/lib/iag/records/failure-catalog";
+import { formatLimits } from "@/lib/maintenance/acceptance";
 import type { SheetModel } from "@/lib/maintenance/job-sheet";
 import { qrSvg } from "@/lib/maintenance/qr";
 
@@ -75,11 +76,14 @@ function Grid({ head, rows, widths }: { head: string[]; rows: number; widths: st
 }
 
 export function JobSheet({ sheet, enterHref, printedOn }: { sheet: SheetModel; enterHref: string; printedOn: string }) {
+  const hasLimits = sheet.limits.some(Boolean);
   return (
     <article className="job-sheet mx-auto mb-6 w-full max-w-[190mm] bg-white p-1 text-black print:mb-0">
       <header className="flex gap-3 border-2 border-black p-2">
         <div className="min-w-0 flex-1">
-          <p className="text-[9px] font-bold uppercase tracking-widest">Maintenance job sheet</p>
+          <p className="text-[9px] font-bold uppercase tracking-widest">
+            {sheet.commissioning ? "Commissioning sheet — acceptance and handover" : "Maintenance job sheet"}
+          </p>
           <p className="text-xl font-bold leading-tight">{sheet.num}</p>
           <p className="text-[13px] font-semibold leading-tight">{sheet.title}</p>
           <p className="mt-0.5 text-[10px]">
@@ -115,6 +119,18 @@ export function JobSheet({ sheet, enterHref, printedOn }: { sheet: SheetModel; e
                 <dd className="inline">{sheet.estimatedHours} h</dd>
               </div>
             ) : null}
+            {sheet.contractor ? (
+              <div>
+                <dt className="inline font-bold">Installer: </dt>
+                <dd className="inline">{sheet.contractor}</dd>
+              </div>
+            ) : null}
+            {sheet.projectRef ? (
+              <div>
+                <dt className="inline font-bold">Project: </dt>
+                <dd className="inline">{sheet.projectRef}</dd>
+              </div>
+            ) : null}
             {sheet.partsPlanned ? (
               <div className="col-span-2">
                 <dt className="inline font-bold">Parts planned: </dt>
@@ -134,11 +150,17 @@ export function JobSheet({ sheet, enterHref, printedOn }: { sheet: SheetModel; e
       </header>
 
       {sheet.steps.length ? (
-        <Section title="Checklist — tick one per step; a fail needs a note">
+        <Section
+          title={
+            sheet.commissioning
+              ? "Acceptance tests — measure, then tick; a reading outside the limits is a fail"
+              : "Checklist — tick one per step; a fail needs a note"
+          }
+        >
           <table className="w-full border-collapse text-[9px]">
             <thead>
               <tr>
-                {["#", "Step", "Pass", "Fail", "N/A", "Reading", "Note"].map((h) => (
+                {["#", sheet.commissioning ? "Test" : "Step", ...(hasLimits ? ["Limits"] : []), "Pass", "Fail", "N/A", hasLimits ? "Measured" : "Reading", "Note"].map((h) => (
                   <th key={h} className="border border-black px-1 py-0.5 text-left font-bold">
                     {h}
                   </th>
@@ -150,6 +172,7 @@ export function JobSheet({ sheet, enterHref, printedOn }: { sheet: SheetModel; e
                 <tr key={i}>
                   <td className="w-5 border border-black px-1">{i + 1}</td>
                   <td className="border border-black px-1">{step}</td>
+                  {hasLimits ? <td className="w-20 border border-black px-1">{formatLimits(sheet.limits[i])}</td> : null}
                   {[0, 1, 2].map((k) => (
                     <td key={k} className="w-7 border border-black text-center">
                       <span className={box} />
@@ -161,6 +184,10 @@ export function JobSheet({ sheet, enterHref, printedOn }: { sheet: SheetModel; e
               ))}
             </tbody>
           </table>
+        </Section>
+      ) : sheet.commissioning ? (
+        <Section title="Acceptance tests — none set on this job; write each test, its limits and the measurement">
+          <Grid head={["Test", "Limits", "Measured", "Pass / fail"]} rows={6} widths={["46%", "18%", "18%", "18%"]} />
         </Section>
       ) : null}
 
@@ -201,20 +228,45 @@ export function JobSheet({ sheet, enterHref, printedOn }: { sheet: SheetModel; e
         <p className="mt-1 text-[10px]">Follow-up needed: ________________________________________________</p>
       </Section>
 
-      <Section title="Sign-off">
-        <div className="grid grid-cols-2 gap-x-4 text-[10px]">
-          <div>
-            <p className="font-bold">Technician (did the work)</p>
-            <p className="mt-2">Name ____________________________</p>
-            <p className="mt-2">Signature __________________ Date ________</p>
+      {sheet.commissioning ? (
+        <Section title="Handover — the machine is accepted into service">
+          <p className="mb-1 text-[9px]">
+            Three different people. Engineering and production sign only when every test has passed (or does not apply).
+          </p>
+          <div className="grid grid-cols-3 gap-x-3 text-[10px]">
+            {[
+              ["Installer", "installed it", true],
+              ["Engineering", "accepts it", false],
+              ["Production", "will run it", false],
+            ].map(([who, what, company]) => (
+              <div key={String(who)}>
+                <p className="font-bold">
+                  {who} <span className="font-normal">({what})</span>
+                </p>
+                <p className="mt-2">Name ____________________</p>
+                {company ? <p className="mt-2">Company _________________</p> : null}
+                <p className="mt-2">Signature _______________</p>
+                <p className="mt-2">Date ____________________</p>
+              </div>
+            ))}
           </div>
-          <div>
-            <p className="font-bold">Supervisor (checked the work)</p>
-            <p className="mt-2">Name ____________________________</p>
-            <p className="mt-2">Signature __________________ Date ________</p>
+        </Section>
+      ) : (
+        <Section title="Sign-off">
+          <div className="grid grid-cols-2 gap-x-4 text-[10px]">
+            <div>
+              <p className="font-bold">Technician (did the work)</p>
+              <p className="mt-2">Name ____________________________</p>
+              <p className="mt-2">Signature __________________ Date ________</p>
+            </div>
+            <div>
+              <p className="font-bold">Supervisor (checked the work)</p>
+              <p className="mt-2">Name ____________________________</p>
+              <p className="mt-2">Signature __________________ Date ________</p>
+            </div>
           </div>
-        </div>
-      </Section>
+        </Section>
+      )}
 
       <p className="mt-1 text-[8px] text-neutral-600">
         Enter results: {enterHref} · Printed {printedOn}

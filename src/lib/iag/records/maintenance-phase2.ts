@@ -525,6 +525,31 @@ export async function signOff(
   );
 }
 
+/**
+ * One party's signature on a commissioning handover (installer, engineering,
+ * production). From a paper sheet the name and date are the signer's; the
+ * person typing it in is kept by MES as entered_by.
+ */
+export async function signHandover(
+  num: string,
+  party: "installer" | "engineering" | "production",
+  paper: { signedBy?: unknown; signedOn?: unknown; company?: unknown },
+): Promise<Row | null> {
+  const signedBy = str(paper.signedBy).trim();
+  return unwrapOne<Row>(
+    await mes({
+      service: "mes",
+      path: `/api/v1/work-orders/${encodeURIComponent(num)}/handover/${party}`,
+      method: "POST",
+      body: omitEmpty({
+        signed_by: signedBy || undefined,
+        signed_on: str(paper.signedOn).trim() || undefined,
+        company: str(paper.company).trim() || undefined,
+      }),
+    }),
+  );
+}
+
 /** A job card's meter reading also goes to the machine's running hours. */
 export async function recordJobCardMeter(tag: string, value: unknown, date: unknown): Promise<void> {
   const raw = str(value).trim();

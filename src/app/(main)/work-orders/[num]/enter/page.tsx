@@ -23,7 +23,8 @@ import {
   type ResultsForm,
   type StepResult,
 } from "@/lib/maintenance/enter-results";
-import { FAILURE_CODED, stepsFrom } from "@/lib/maintenance/job-sheet";
+import { formatLimits, parseStep } from "@/lib/maintenance/acceptance";
+import { COMMISSIONING, FAILURE_CODED, stepsFrom } from "@/lib/maintenance/job-sheet";
 import { todayIso } from "@/lib/maintenance/planner";
 import { useRecordLists } from "@/lib/maintenance/use-record-lists";
 import { cn } from "@/lib/utils";
@@ -66,7 +67,9 @@ export default function EnterResultsPage() {
   const card = (data["batch-records"] || []).find((c) => String(c.workOrder || c.id) === num);
   const marks = (data["checklist-steps"] || []).filter((s) => String(s.workOrder) === num);
   const booked = (data["parts-used"] || []).filter((p) => String(p.workOrder) === num);
-  const steps = useMemo(() => stepsFrom(wo?.checklist), [wo?.checklist]);
+  const parsed = useMemo(() => stepsFrom(wo?.checklist).map(parseStep), [wo?.checklist]);
+  const steps = useMemo(() => parsed.map((p) => p.text), [parsed]);
+  const commissioning = COMMISSIONING.test(String(wo?.woType || ""));
   const today = todayIso();
 
   const [form, setForm] = useState<ResultsForm | null>(null);
@@ -110,6 +113,9 @@ export default function EnterResultsPage() {
     } else if (wo.assignee) {
       f.labour[0].technician = wo.assignee;
     }
+    f.handover.installer = { by: wo.installerSignedBy || "", on: today, company: wo.installerCompany || wo.contractor || "" };
+    f.handover.engineering = { by: wo.engineeringSignedBy || "", on: today };
+    f.handover.production = { by: wo.productionSignedBy || "", on: today };
     f.technicianSignedBy = wo.signedBy || "";
     f.supervisorCheckedBy = wo.checkedBy || "";
     f.complete = !/^completed$/i.test(String(wo.status || ""));
@@ -128,9 +134,11 @@ export default function EnterResultsPage() {
             hasJobCard: Boolean(card),
             alreadyCompleted: /^completed$/i.test(String(wo.status || "")),
             today,
+            limits: parsed.map((p) => p.limits),
+            commissioning,
           }
         : null,
-    [wo, card, num, today],
+    [wo, card, num, today, parsed, commissioning],
   );
 
   const set = (patch: Partial<ResultsForm>) => setForm((f) => (f ? { ...f, ...patch } : f));
@@ -212,7 +220,7 @@ export default function EnterResultsPage() {
         ) : (
           <div className="mx-auto grid max-w-4xl gap-4">
             {steps.length ? (
-              <Section n={1} title="Checklist">
+              <Section n={1} title={commissioning ? "Acceptance tests" : "Checklist"}>
                 <Field label="Steps ticked by (name on the sheet — leave blank if it was the first technician)" className="mb-3 max-w-sm">
                   <input className={input} list="technician-names" value={form.markedBy} onChange={(e) => set({ markedBy: e.target.value })} />
                 </Field>
@@ -223,6 +231,9 @@ export default function EnterResultsPage() {
                       <div key={i} className="grid items-center gap-2 rounded-lg border border-slate-100 p-2 sm:grid-cols-[1fr_auto_90px_1fr] dark:border-slate-800">
                         <span className="text-[13px] text-slate-800 dark:text-slate-100">
                           {i + 1}. {step}
+                          {parsed[i]?.limits ? (
+                            <span className="ml-1 text-[12px] text-slate-500">({formatLimits(parsed[i].limits)})</span>
+                          ) : null}
                         </span>
                         <div className="flex gap-1" role="radiogroup" aria-label={`Step ${i + 1} result`}>
                           {(["Pass", "Fail", "N/A"] as StepResult[]).map((r) => (
@@ -252,7 +263,8 @@ export default function EnterResultsPage() {
                         </div>
                         <input
                           className={input}
-                          placeholder="Reading"
+                          placeholder={parsed[i]?.limits ? "Measured" : "Reading"}
+                          aria-label={`${commissioning ? "Test" : "Step"} ${i + 1} reading`}
                           inputMode="decimal"
                           value={s.reading}
                           onChange={(e) => {
@@ -437,7 +449,43 @@ export default function EnterResultsPage() {
               ) : null}
             </Section>
 
-            <Section n={7} title="Sign-off — names and dates as written on the sheet">
+            <Section n={7} title={`${commissioning ? "Handover" : "Sign-off"} — names and dates as written on the sheet`}>
+              {commissioning ? (
+                <div className="grid gap-3">
+                  <p className="text-[12px] text-slate-500">
+                    Three different people. Engineering and production accept the machine only once every test has passed.
+                  </p>
+                  {(
+                    [
+                      ["installer", "Installer (installed it)"],
+                      ["engineering", "Engineering (accepts it)"],
+                      ["production", "Production (will run it)"],
+                    ] as const
+                  ).map(([party, label]) => {
+                    const signer = form.handover[party];
+                    const put = (patch: Partial<typeof signer>) =>
+                      set({ handover: { ...form.handover, [party]: { ...signer, ...patch } } });
+                    return (
+                      <div
+                        key={party}
+                        className={cn("grid gap-2", party === "installer" ? "sm:grid-cols-[1fr_1fr_150px]" : "sm:grid-cols-[1fr_150px]")}
+                      >
+                        <Field label={label}>
+                          <input className={input} disabled={job.alreadyCompleted} value={signer.by} onChange={(e) => put({ by: e.target.value })} />
+                        </Field>
+                        {party === "installer" ? (
+                          <Field label="Company">
+                            <input className={input} disabled={job.alreadyCompleted} value={signer.company || ""} onChange={(e) => put({ company: e.target.value })} />
+                          </Field>
+                        ) : null}
+                        <Field label="Date">
+                          <input className={input} type="date" disabled={job.alreadyCompleted} value={signer.on} onChange={(e) => put({ on: e.target.value })} />
+                        </Field>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="grid grid-cols-[1fr_150px] gap-2">
                   <Field label="Technician (did the work)">
@@ -456,13 +504,18 @@ export default function EnterResultsPage() {
                   </Field>
                 </div>
               </div>
+              )}
               {!job.alreadyCompleted ? (
                 <label className="mt-3 flex items-center gap-2 text-[13px]">
                   <input type="checkbox" checked={form.complete} onChange={(e) => set({ complete: e.target.checked })} />
-                  Complete the work order
+                  {commissioning ? "Complete commissioning — the machine goes into service" : "Complete the work order"}
                 </label>
               ) : (
-                <p className="mt-3 text-[12px] text-slate-500">This job is already completed; only the supervisor&apos;s check can still be added.</p>
+                <p className="mt-3 text-[12px] text-slate-500">
+                  {commissioning
+                    ? "Commissioning is complete; the machine is in service."
+                    : "This job is already completed; only the supervisor's check can still be added."}
+                </p>
               )}
             </Section>
 
