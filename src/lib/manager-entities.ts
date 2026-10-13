@@ -449,6 +449,16 @@ function maintenanceFields(value: string): EntityField[] | null {
       date("warrantyUntil", "Warranty until"),
       // A motor on a huller, a pump on a washing line: the machine it is part of.
       text("parentMachine", "Part of machine"),
+      // Read on save of a new machine only: raises its installation (then
+      // commissioning) or commissioning job in iag-mes.
+      select("putIntoService", "New machine — put into service by", [
+        "Already in service",
+        "Installation, then commissioning",
+        "Commissioning only",
+      ]),
+      { key: "serviceState", label: "Service state", readOnly: true },
+      { key: "commissionedOn", label: "Commissioned on", readOnly: true },
+      { key: "commissioningWO", label: "Commissioning job", readOnly: true },
       { key: "notes", label: "Notes", type: "textarea" },
     ];
   }
@@ -464,7 +474,12 @@ function maintenanceFields(value: string): EntityField[] | null {
         placeholder: "What is wrong, e.g. Huller bearing running hot.",
       },
       text("workCenter", "Machine", true),
-      select("woType", "Type", ["Breakdown", "Corrective", "Preventive", "Inspection", "Overhaul"], true),
+      select(
+        "woType",
+        "Type",
+        ["Breakdown", "Corrective", "Preventive", "Inspection", "Overhaul", "Installation", "Commissioning"],
+        true,
+      ),
       // mes_work_orders.priority CHECK.
       select("priority", "Priority", ["Medium", "High", "Critical", "Low"], true),
       date("dueDate", "Due"),
@@ -478,7 +493,12 @@ function maintenanceFields(value: string): EntityField[] | null {
       text("partsRequired", "Parts required"),
       number("estimatedCost", "Estimated cost"),
       { key: "pmTemplate", label: "From PM template", readOnly: true },
-      { key: "checklist", label: "Checklist", type: "textarea", readOnly: true },
+      {
+        key: "checklist",
+        label: "Checklist / acceptance tests — one per line",
+        type: "textarea",
+        placeholder: "Limits in brackets: Motor current at full load [10–14 A]. Fixed once a step is marked.",
+      },
       // Run step by step under Checklist Steps; completion needs every step
       // marked and the technician's sign-off (iag-mes enforces it).
       { key: "checklistProgress", label: "Checklist steps marked", readOnly: true },
@@ -492,6 +512,21 @@ function maintenanceFields(value: string): EntityField[] | null {
       { key: "failureNote", label: "Failure note (needed for Other)", type: "textarea" },
       // Work estimated at or above the factory's threshold waits for someone
       // other than whoever raised it.
+      // Installation and commissioning (iag-mes): who did it, under which
+      // project, and the handover that puts the machine into service.
+      text("contractor", "Installer / contractor"),
+      text("projectRef", "Project reference"),
+      number("warrantyMonths", "Warranty (months from commissioning)"),
+      {
+        key: "commissioningTemplate",
+        label: "Commissioning template",
+        placeholder: "Blank: the template for the machine's type",
+      },
+      { key: "handover", label: "Handover signed", readOnly: true },
+      text("installerSignedBy", "Handover — installer"),
+      text("installerCompany", "Installer's company"),
+      text("engineeringSignedBy", "Handover — engineering (accepts)"),
+      text("productionSignedBy", "Handover — production (accepts)"),
       { key: "approval", label: "Approval", readOnly: true },
       { key: "approvalBy", label: "Decided by", readOnly: true },
       select("approvalDecision", "Approval decision", ["Approve", "Reject"]),
@@ -527,10 +562,16 @@ function maintenanceFields(value: string): EntityField[] | null {
       number("intervalDays", "Every (days)", true),
       // Due at whichever comes first: the days, or these running hours.
       { key: "intervalHours", label: "Or every (running hours)", type: "number", placeholder: "e.g. 250 — blank for days only" },
+      // Commissioning templates are acceptance tests, run once per machine.
+      select("kind", "Kind", ["Preventive", "Commissioning"]),
+      number("estimatedHours", "Hours per job"),
+      number("crewSize", "People per job"),
+      select("fixedDates", "When a job is done late", ["Yes — keep the calendar", "No — count from when it was done"]),
       {
         key: "checklist",
         label: "Checklist — one step per line",
         type: "textarea",
+        placeholder: "Limits in brackets for a measured test: Bearing temperature [max 70 °C]",
       },
       { key: "notes", label: "Notes", type: "textarea" },
     ];
@@ -864,7 +905,7 @@ const MAINTENANCE_COLUMNS: Record<string, string[]> = {
   sections: ["plantCode", "code", "name", "lineType"],
   "work-orders": ["num", "title", "workCenter", "priority", "dueDate", "approval", "status"],
   "batch-records": ["workOrder", "date", "workCenter", "technician", "hours", "status"],
-  "pm-templates": ["code", "name", "assetCategory", "intervalDays"],
+  "pm-templates": ["code", "name", "kind", "assetCategory", "intervalDays"],
   "pm-schedules": ["template", "workCenter", "nextDue", "lastDone", "status"],
   "downtime-logs": ["date", "startTime", "workCenter", "reason", "minutes", "status"],
   "spare-parts": ["name", "code", "fitsMachineTypes", "onHand", "reorderLevel", "stockLevel", "status"],

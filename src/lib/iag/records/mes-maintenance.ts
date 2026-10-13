@@ -26,11 +26,13 @@ import {
   meterFields,
   meterStatusBySchedule,
   recordJobCardMeter,
+  signHandover,
   signOff,
   writeApproval,
   writeFailure,
 } from "@/lib/iag/records/maintenance-phase2";
 import { resourceAdapter } from "@/lib/iag/records/resource";
+import { stepForService, stepFromService } from "@/lib/maintenance/acceptance";
 import {
   attachmentRefs,
   attachmentsJson,
@@ -195,26 +197,51 @@ function isCompleted(status: string | undefined): boolean {
   return snakeCase(status) === "completed";
 }
 
+/** A stored checklist as textarea lines; a step's limits come back in [ ]. */
 function checklistText(value: unknown): string {
   if (!Array.isArray(value)) return "";
-  return value
-    .map((item) => {
-      if (typeof item === "string") return item;
-      if (item && typeof item === "object") {
-        const obj = item as Row;
-        return str(pick(obj, "task", "label", "name", "step", "item", "title"));
-      }
-      return str(item);
-    })
-    .filter(Boolean)
-    .join("\n");
+  return value.map(stepFromService).filter(Boolean).join("\n");
 }
 
-function checklistLines(value: string | undefined): string[] {
+/** Textarea lines as a checklist: "Motor current [10–14 A]" is a step with limits. */
+function checklistLines(value: string | undefined): (string | Record<string, unknown>)[] {
   return str(value)
     .split(/\r?\n|;/)
     .map((line) => line.replace(/^\s*[-*•\d.)]+\s*/, "").trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .map(stepForService);
+}
+
+/** Installation and commissioning (iag-mes installation.go). */
+export const INSTALLATION_TYPES = /^(installation|commissioning)$/i;
+export const HANDOVER_PARTIES = ["installer", "engineering", "production"] as const;
+export type HandoverParty = (typeof HANDOVER_PARTIES)[number];
+
+const SERVICE_STATE_LABEL: Record<string, string> = {
+  installing: "Being installed",
+  commissioning: "Being commissioned",
+  in_service: "In service",
+};
+
+function handoverFields(row: Row) {
+  const h = (attrs(row).handover || {}) as Row;
+  const who = (p: HandoverParty) => (h[p] && typeof h[p] === "object" ? (h[p] as Row) : undefined);
+  const line = (p: HandoverParty, label: string) => {
+    const e = who(p);
+    if (!e) return "";
+    const by = str(e.by);
+    const company = str(e.company);
+    return `${label}: ${by}${company ? ` (${company})` : ""}`;
+  };
+  return {
+    handover: [line("installer", "Installer"), line("engineering", "Engineering"), line("production", "Production")]
+      .filter(Boolean)
+      .join(" · "),
+    installerSignedBy: str(who("installer")?.by),
+    installerCompany: str(who("installer")?.company),
+    engineeringSignedBy: str(who("engineering")?.by),
+    productionSignedBy: str(who("production")?.by),
+  };
 }
 
 export function workOrderToRecord(row: Row): Omit<AppRecord, "id"> & { id?: string } {
@@ -243,6 +270,13 @@ export function workOrderToRecord(row: Row): Omit<AppRecord, "id"> & { id?: stri
     reportedBy: str(extra.reported_by),
     checklist: checklistText(extra.checklist),
     attachments: attachmentsJson(pick(extra, "attachments")),
+    // Installation and commissioning.
+    contractor: str(extra.contractor),
+    projectRef: str(extra.project_ref),
+    warrantyMonths: str(extra.warranty_months),
+    commissioningTemplate: str(extra.commissioning_template),
+    installationWO: str(extra.installation_wo),
+    ...handoverFields(row),
     // Phase 2: failure code, approval, checklist progress and sign-off.
     ...failureFields(row),
     ...approvalFields(row),
@@ -280,8 +314,39 @@ function workOrderPatchFields(record: AppRecord): Record<string, unknown> {
       estimatedCost: record.estimatedCost,
       description: record.description,
       attachments: attachmentRefs(record.attachments),
+      ...installationAttrs(record),
     }),
   });
+}
+
+/** The installation and commissioning facts a job carries, by MES key. */
+function installationAttrs(record: AppRecord): Record<string, unknown> {
+  const months = str(record.warrantyMonths).trim();
+  if (months && !(Number(months) >= 0 && Number(months) <= 240)) {
+    throw new InputError("Warranty is a number of months, 0–240.");
+  }
+  return {
+    contractor: record.contractor,
+    project_ref: record.projectRef,
+    warranty_months: months ? Number(months) : undefined,
+  };
+}
+
+/**
+ * The checklist, when the form changed it. Steps are run by index, so once
+ * any is marked the list is fixed — reordering would move the marks onto
+ * different tests.
+ */
+function checklistChange(record: AppRecord, current: Row | null): (string | Record<string, unknown>)[] | undefined {
+  if (record.checklist === undefined) return undefined;
+  const next = checklistLines(str(record.checklist));
+  const now = current ? checklistText(attrs(current).checklist) : "";
+  if (next.map(stepFromService).join("\n") === now) return undefined;
+  const marked = current ? attrs(current).checklist_results : undefined;
+  if (Array.isArray(marked) && marked.length) {
+    throw new InputError("Checklist steps have already been marked on this job, so its checklist can no longer change.");
+  }
+  return next;
 }
 
 /** A planned day, YYYY-MM-DD, or undefined. Anything else is refused. */
@@ -409,6 +474,7 @@ export const workOrders: RecordAdapter = {
       throw new InputError("Pick the machine this work order is for.");
     }
     const woType = snakeCase(record.woType) || "corrective";
+    const checklist = str(record.checklist).trim() ? checklistLines(str(record.checklist)) : undefined;
     const payload = await gatewayFetch({
       service: "mes",
       path: "/api/v1/work-orders",
@@ -429,6 +495,11 @@ export const workOrders: RecordAdapter = {
           estimatedCost: record.estimatedCost,
           description: record.description,
           attachments: attachmentRefs(record.attachments),
+          ...installationAttrs(record),
+          // A commissioning job with no tests of its own takes the template's
+          // for the machine's category (or the one named here).
+          commissioning_template: str(record.commissioningTemplate).trim() || undefined,
+          checklist,
         }),
       }),
     });
@@ -447,13 +518,30 @@ export const workOrders: RecordAdapter = {
   async update(_ctx, id, record) {
     let row: Row | null = null;
     await writeApproval(id, record);
-    await writeFailure(id, record, await getWorkOrder(id));
+    const current = await getWorkOrder(id);
+    await writeFailure(id, record, current);
     const body = workOrderPatchBody(record);
+    const checklist = checklistChange(record, current);
+    if (checklist) body.checklist = checklist;
     if (Object.keys(body).length) row = await patchWorkOrder(id, body);
     // Signatures from a paper sheet: the technician's before completion
     // (completion needs it), the supervisor's after (a check of finished work).
     if (str(record.technicianSignedBy).trim()) {
       row = (await signOff(id, "technician", { signedBy: record.technicianSignedBy, signedOn: record.technicianSignedOn })) || row;
+    }
+    // A commissioning handover, in the order it is signed: the installer,
+    // then the two who accept the machine. Each is written once — a name
+    // already on the handover is not signed again.
+    const signed = handoverFields(current || {});
+    for (const party of HANDOVER_PARTIES) {
+      const by = str(record[`${party}SignedBy`]).trim();
+      if (!by || by.toLowerCase() === str(signed[`${party}SignedBy`]).toLowerCase()) continue;
+      row =
+        (await signHandover(id, party, {
+          signedBy: by,
+          signedOn: record[`${party}SignedOn`],
+          company: party === "installer" ? record.installerCompany : undefined,
+        })) || row;
     }
     if (isCompleted(record.status)) row = (await completeWorkOrder(id)) || row;
     if (str(record.supervisorCheckedBy).trim()) {
@@ -695,9 +783,46 @@ export function pmTemplateToRecord(row: Row): Omit<AppRecord, "id"> & { id?: str
     intervalHours: Number(extra.interval_hours) > 0 ? str(extra.interval_hours) : "",
     checklist: checklistText(pick(row, "checklist")),
     notes: str(extra.notes),
+    // A commissioning template is a set of acceptance tests, run once when a
+    // machine goes in; it has no interval and is never scheduled.
+    kind: /^commissioning$/i.test(str(extra.kind)) ? "Commissioning" : "Preventive",
+    estimatedHours: Number(extra.estimated_hours) > 0 ? str(extra.estimated_hours) : "",
+    crewSize: Number(extra.crew_size) > 0 ? str(extra.crew_size) : "",
+    // Fixed: the next job stays on the calendar when one is done late.
+    fixedDates: extra.fixed_dates === true ? "Yes — keep the calendar" : "No — count from when it was done",
     createdAt: "",
     updatedAt: "",
   };
+}
+
+/**
+ * What the forecast and the annual calendar plan with: the kind, the hours a
+ * job takes and how many people, and whether its dates are fixed. New
+ * templates keep fixed dates unless told otherwise (an annual plan has to
+ * hold); an edit changes it only when the form says so.
+ */
+function templatePlanning(record: AppRecord, creating: boolean): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (record.kind !== undefined || creating) {
+    out.kind = /^commissioning$/i.test(str(record.kind).trim()) ? "commissioning" : "preventive";
+  }
+  for (const [key, attr, label] of [
+    ["estimatedHours", "estimated_hours", "Hours per job"],
+    ["crewSize", "crew_size", "People per job"],
+  ] as const) {
+    if (record[key] === undefined) continue;
+    const raw = str(record[key]).trim();
+    if (!raw) {
+      if (!creating) out[attr] = 0;
+      continue;
+    }
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0 || n > 1000) throw new InputError(`${label} is a number from 0 to 1000.`);
+    out[attr] = n;
+  }
+  if (record.fixedDates !== undefined) out.fixed_dates = /^yes/i.test(str(record.fixedDates).trim());
+  else if (creating) out.fixed_dates = true;
+  return out;
 }
 
 const pmTemplatesBase = resourceAdapter({
@@ -712,7 +837,11 @@ const pmTemplatesBase = resourceAdapter({
       // ShouldBindJSON, no coercion: a string here is a 400.
       interval_days: numberOrUndefined(record.intervalDays),
       checklist: checklistLines(record.checklist),
-      attrs: attrsOrOmit({ notes: record.notes, interval_hours: numberOrUndefined(record.intervalHours) }),
+      attrs: attrsOrOmit({
+        notes: record.notes,
+        interval_hours: numberOrUndefined(record.intervalHours),
+        ...templatePlanning(record, true),
+      }),
     }),
   noUpdate: true,
   noDelete: true,
@@ -752,6 +881,7 @@ export const pmTemplates: RecordAdapter = {
           notes: record.notes,
           interval_hours:
             record.intervalHours !== undefined ? numberOrUndefined(record.intervalHours) ?? 0 : undefined,
+          ...templatePlanning(record, false),
         }),
       }),
     });
@@ -1033,6 +1163,11 @@ function assetToRecord(row: Row): Omit<AppRecord, "id"> & { id?: string } {
     // Nameplate and history (attrs): what it is, where it came from, and the
     // machine it is part of, if any.
     ...Object.fromEntries(MACHINE_DETAIL_FIELDS.map((k) => [k, str(pick(extra, k))])),
+    // Set by iag-mes as installation and commissioning jobs complete. Blank on
+    // machines that were in service before either existed.
+    serviceState: SERVICE_STATE_LABEL[str(extra.serviceState)] || "",
+    commissionedOn: str(extra.commissionedOn),
+    commissioningWO: str(extra.commissioningWO),
     createdAt: str(pick(row, "created_at")),
     updatedAt: str(pick(row, "updated_at")),
   };
@@ -1191,7 +1326,39 @@ export const assets: RecordAdapter = {
         attrs: attrsOrOmit({ supervisor: record.supervisor, notes: record.notes, ...detailAttrs(record) }),
       }),
     });
-    const row = unwrapOne<Row>(payload);
+    let row = unwrapOne<Row>(payload);
+    // A new machine that still has to go in: raise the first job of putting
+    // it into service. MES then raises commissioning when installation is
+    // done, and marks the machine in service when commissioning is.
+    const start = /installation/i.test(str(record.putIntoService))
+      ? "installation"
+      : /commissioning/i.test(str(record.putIntoService))
+        ? "commissioning"
+        : "";
+    if (row && start) {
+      const name = str(record.name || record.code).trim() || tag;
+      try {
+        await gatewayFetch({
+          service: "mes",
+          path: "/api/v1/work-orders",
+          method: "POST",
+          body: omitEmpty({
+            title: `${start === "installation" ? "Install" : "Commission"} ${name}`,
+            asset_tag: tag,
+            wo_type: start,
+            priority: "medium",
+            status: "open",
+            assignee: str(record.supervisor).trim() || undefined,
+          }),
+        });
+        row = (await getAsset(tag)) || row;
+      } catch (err) {
+        throw new InputError(
+          `Machine ${tag} was saved, but its ${start} job was not raised (${err instanceof Error ? err.message : "error"}). ` +
+            `Raise it under Work Orders with type ${titleCase(start)}.`,
+        );
+      }
+    }
     return row ? withMeta(assetToRecord(row), tag) : null;
   },
 

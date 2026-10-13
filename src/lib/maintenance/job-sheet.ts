@@ -7,9 +7,12 @@
  * work (MES requires it there and nowhere else), the checklist when the job
  * has one.
  */
+import { parseStep, type StepLimits } from "@/lib/maintenance/acceptance";
 import type { Rec } from "@/lib/maintenance/machine-summary";
 
 export const FAILURE_CODED = /^(breakdown|corrective)$/i;
+/** A commissioning job: acceptance tests and a three-party handover. */
+export const COMMISSIONING = /^commissioning$/i;
 const LIVE = /^(draft|scheduled|open|in progress)$/i;
 
 export type SheetModel = {
@@ -28,6 +31,11 @@ export type SheetModel = {
   partsPlanned: string;
   estimatedHours: string;
   steps: string[];
+  /** Each step's acceptance limits, by index (null: none). */
+  limits: (StepLimits | null)[];
+  commissioning: boolean;
+  contractor: string;
+  projectRef: string;
   needsFailureCode: boolean;
   notApproved: boolean;
   status: string;
@@ -59,7 +67,11 @@ export function sheetModel(wo: Rec, machine?: Rec): SheetModel {
     description: String(wo.description || ""),
     partsPlanned: String(wo.partsRequired || ""),
     estimatedHours: String(wo.estimatedHours || ""),
-    steps: stepsFrom(wo.checklist),
+    steps: stepsFrom(wo.checklist).map((line) => parseStep(line).text),
+    limits: stepsFrom(wo.checklist).map((line) => parseStep(line).limits),
+    commissioning: COMMISSIONING.test(String(wo.woType || "")),
+    contractor: String(wo.contractor || ""),
+    projectRef: String(wo.projectRef || ""),
     needsFailureCode: FAILURE_CODED.test(String(wo.woType || "")),
     notApproved: /^(waiting|rejected)$/i.test(String(wo.approval || "")),
     status: String(wo.status || ""),
