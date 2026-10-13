@@ -5294,7 +5294,7 @@ function RecordFormModal({
                       options={pickerOptions}
                       placeholder="Select machine…"
                       searchPlaceholder="Search machines / work centers…"
-                      emptyText="No machines yet — register them under Engineering and Utilities → Machines."
+                      emptyText="No machines yet — register them under Maintenance → Machines."
                       onChange={(next) => {
                         if (field.key === "roaster") setRoasterValue(next);
                         else if (field.key === "line") setLineValue(next);
@@ -5305,11 +5305,11 @@ function RecordFormModal({
                     />
                     {!effective.length ? (
                       <p className="mt-1 text-[11px] text-amber-600">
-                        No machines yet — register them under Engineering and Utilities → Machines first.
+                        No machines yet — register them under Maintenance → Machines first.
                       </p>
                     ) : (
                       <p className="mt-1 text-[10px] text-slate-400">
-                        From Engineering and Utilities → Machines. Saves the machine&apos;s asset code.
+                        From Maintenance → Machines. Saves the machine&apos;s asset code.
                       </p>
                     )}
                   </div>

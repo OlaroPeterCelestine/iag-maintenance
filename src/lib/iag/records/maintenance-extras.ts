@@ -169,7 +169,7 @@ async function setItemStatus(itemId: string, status: string | undefined, current
     service: "warehouse",
     path: `/api/v1/items/${encodeURIComponent(itemId)}/status`,
     method: "PATCH",
-    body: { status: wanted, reason: "Set from the Engineering and Utilities app's Spare Parts tab" },
+    body: { status: wanted, reason: "Set from the Maintenance app's Spare Parts tab" },
   });
 }
 

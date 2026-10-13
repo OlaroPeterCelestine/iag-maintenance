@@ -68,7 +68,7 @@ const PAGE_MEANING: Record<string, string> = {
   qa:
     "Quality Assurance decides whether product can move. Incoming inspections check what arrived. In-process checks watch production. Release decisions and the hold-and-release log say if a batch may ship. Non-conformances and CAPA actions record defects and the fix.",
   production:
-    "Engineering and Utilities runs the machinery workshop and the plant's utilities. Machines are the register. Work orders raise a job, and job cards record the work done against it. PM templates describe a service; preventive schedules put one on a machine and raise its work order when it falls due. Downtime records a stop.",
+    "Maintenance is the machinery workshop. Machines are the register. Work orders raise a job, and job cards record the work done against it. PM templates describe a service; preventive schedules put one on a machine and raise its work order when it falls due. Downtime records a stop.",
   benchmark:
     "Work Systems (benchmark) measures how work is done. Define a work system and its KPIs, then run studies of cycle time and productivity. Gap analyses and improvement actions record what is off target and what will change.",
   pos:
