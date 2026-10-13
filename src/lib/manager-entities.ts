@@ -522,6 +522,7 @@ function maintenanceFields(value: string): EntityField[] | null {
         label: "Commissioning template",
         placeholder: "Blank: the template for the machine's type",
       },
+      { key: "shutdown", label: "Done in shutdown", readOnly: true },
       { key: "handover", label: "Handover signed", readOnly: true },
       text("installerSignedBy", "Handover — installer"),
       text("installerCompany", "Installer's company"),
