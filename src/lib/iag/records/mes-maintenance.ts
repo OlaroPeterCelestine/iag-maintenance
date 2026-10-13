@@ -277,6 +277,8 @@ export function workOrderToRecord(row: Row): Omit<AppRecord, "id"> & { id?: stri
     warrantyMonths: str(extra.warranty_months),
     commissioningTemplate: str(extra.commissioning_template),
     installationWO: str(extra.installation_wo),
+    // The shutdown this job is done in (iag-mes shutdown.go), if any.
+    shutdown: str(extra.shutdown),
     ...handoverFields(row),
     // Phase 2: failure code, approval, checklist progress and sign-off.
     ...failureFields(row),

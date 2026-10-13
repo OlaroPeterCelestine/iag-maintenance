@@ -166,6 +166,7 @@ export default function MaintenanceDashboardPage() {
             { href: "/planner", label: "Planner" },
             { href: "/calendar", label: "Annual calendar" },
             { href: "/parts-forecast", label: "Parts forecast" },
+            { href: "/shutdowns", label: "Shutdowns" },
             { href: "/work-orders/print", label: "Print job sheets" },
             { href: "/machines/labels", label: "Machine QR labels" },
           ].map((item) => (
