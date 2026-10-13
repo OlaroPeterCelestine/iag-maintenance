@@ -2,9 +2,10 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "IAG Maintenance",
-    short_name: "IAG Maintenance",
-    description: "Inspire Africa Group machinery maintenance: machines, work orders, schedules, and downtime",
+    name: "IAG Engineering and Utilities",
+    // Home-screen labels truncate past ~12 characters.
+    short_name: "IAG E&U",
+    description: "Inspire Africa Group engineering and utilities: machines, maintenance work, schedules, utilities and downtime",
     start_url: "/",
     scope: "/",
     display: "standalone",

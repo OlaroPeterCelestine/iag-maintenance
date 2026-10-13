@@ -537,9 +537,9 @@ export const moduleConfigs: Record<ModuleSlug, ModuleConfig> = {
   },
   production: {
     slug: "production",
-    label: "Maintenance",
+    label: "Engineering and Utilities",
     description:
-      "Machinery maintenance — the machine register, work orders, job cards, preventive maintenance, spare parts, downtime, and reliability.",
+      "Engineering and utilities — the machine register, work orders, job cards, preventive maintenance, spare parts, downtime, reliability and energy.",
     tableTitle: "Machines",
     kpis: [],
     columns: cols(
@@ -922,7 +922,7 @@ export const NAV_MODULES: {
   },
   {
     slug: "production",
-    label: "Maintenance",
+    label: "Engineering and Utilities",
     href: "/production",
     items: [
       "Factories",
