@@ -29,6 +29,8 @@ export type ForecastItem = {
   estimated_hours?: number | null;
   crew_size?: number | null;
   fixed_dates: boolean;
+  /** Parts the job uses, from its template. */
+  parts?: { sku: string; qty: number }[];
 };
 
 export type ForecastGap = { schedule_id: string; asset_tag: string; template_code: string; reason: string };

@@ -33,6 +33,7 @@ import {
 } from "@/lib/iag/records/maintenance-phase2";
 import { resourceAdapter } from "@/lib/iag/records/resource";
 import { stepForService, stepFromService } from "@/lib/maintenance/acceptance";
+import { formatParts, parsePartsText } from "@/lib/maintenance/planned-parts";
 import {
   attachmentRefs,
   attachmentsJson,
@@ -790,6 +791,8 @@ export function pmTemplateToRecord(row: Row): Omit<AppRecord, "id"> & { id?: str
     crewSize: Number(extra.crew_size) > 0 ? str(extra.crew_size) : "",
     // Fixed: the next job stays on the calendar when one is done late.
     fixedDates: extra.fixed_dates === true ? "Yes — keep the calendar" : "No — count from when it was done",
+    // What one job uses, for the parts forecast.
+    parts: formatParts(extra.parts),
     createdAt: "",
     updatedAt: "",
   };
@@ -822,7 +825,27 @@ function templatePlanning(record: AppRecord, creating: boolean): Record<string, 
   }
   if (record.fixedDates !== undefined) out.fixed_dates = /^yes/i.test(str(record.fixedDates).trim());
   else if (creating) out.fixed_dates = true;
+  if (record.parts !== undefined) {
+    const parts = parsePartsText(record.parts);
+    // An emptied box clears the list; MES reads null as "none".
+    out.parts = parts.length ? parts : creating ? undefined : null;
+  }
   return out;
+}
+
+/**
+ * A template edit's attrs. MES merges them key by key. attrsOrOmit drops
+ * nulls, so a cleared parts list is put back as null — MES stores that as
+ * no parts.
+ */
+function templateAttrsPatch(record: AppRecord): Record<string, unknown> | undefined {
+  const planning = templatePlanning(record, false);
+  const out = attrsOrOmit({
+    notes: record.notes,
+    interval_hours: record.intervalHours !== undefined ? numberOrUndefined(record.intervalHours) ?? 0 : undefined,
+    ...planning,
+  });
+  return planning.parts === null ? { ...(out || {}), parts: null } : out;
 }
 
 const pmTemplatesBase = resourceAdapter({
@@ -877,12 +900,7 @@ export const pmTemplates: RecordAdapter = {
         checklist: record.checklist !== undefined ? checklistLines(record.checklist) : undefined,
         // MES merges attrs key by key. A blank hours interval is sent as 0,
         // which MES reads as "by date only".
-        attrs: attrsOrOmit({
-          notes: record.notes,
-          interval_hours:
-            record.intervalHours !== undefined ? numberOrUndefined(record.intervalHours) ?? 0 : undefined,
-          ...templatePlanning(record, false),
-        }),
+        attrs: templateAttrsPatch(record),
       }),
     });
     const row = unwrapOne<Row>(payload);

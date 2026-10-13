@@ -79,6 +79,9 @@ export const purchaseRequests: RecordAdapter = {
             department: dept,
             reason: str(record.reason).trim() || undefined,
             urgent: /^(yes|urgent)$/i.test(str(record.urgent).trim()),
+            // Idempotent in procurement: the parts forecast sends one ref per
+            // part per shortfall, so asking twice does not order twice.
+            ref: str(record.ref).trim() || undefined,
           },
         }),
       );
