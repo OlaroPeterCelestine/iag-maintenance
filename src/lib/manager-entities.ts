@@ -568,6 +568,12 @@ function maintenanceFields(value: string): EntityField[] | null {
       number("crewSize", "People per job"),
       select("fixedDates", "When a job is done late", ["Yes — keep the calendar", "No — count from when it was done"]),
       {
+        key: "parts",
+        label: "Parts per job — one per line",
+        type: "textarea",
+        placeholder: "Part code × quantity, e.g. BRG-6205 × 2",
+      },
+      {
         key: "checklist",
         label: "Checklist — one step per line",
         type: "textarea",
@@ -632,6 +638,7 @@ function maintenanceFields(value: string): EntityField[] | null {
       number("reorderLevel", "Reorder level"),
       number("maxQty", "Maximum stock"),
       text("storeLocation", "Where it is kept"),
+      { key: "leadTimeDays", label: "Lead time (days to get it in)", type: "number", placeholder: "Blank: assumed 14 days" },
       // wh_items.status CHECK; moved through the item status route.
       select("status", "Status", ["Active", "Draft", "Restricted", "Obsolete", "Blocked"], true),
       // Stock moves through warehouse receipts and issues, not this form.

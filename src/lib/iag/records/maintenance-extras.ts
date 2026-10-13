@@ -104,6 +104,9 @@ function sparePartToRecord(
     available: stock ? money(pick(stock, "available")) : "",
     stockLevel: stockLevel(stock ? pick(stock, "available") ?? pick(stock, "qty") : 0, pick(row, "min_qty")),
     storeLocation: str(extra.storeLocation),
+    // Days from ordering to the part being in the stores; the parts forecast
+    // works back from the day a job needs it.
+    leadTimeDays: str(extra.leadTimeDays),
     status: titleCase(str(pick(row, "status"))) || "Active",
     notes: str(extra.notes),
     createdAt: str(pick(row, "created_at")),
@@ -117,8 +120,17 @@ const SPARE_ATTR_FIELDS = [
   "manufacturer",
   "fitsMachines",
   "storeLocation",
+  "leadTimeDays",
   "notes",
 ] as const;
+
+/** A lead time is whole days, 0–365; blank is "not known" (the forecast assumes 14). */
+function checkLeadTime(record: AppRecord): void {
+  const v = str(record.leadTimeDays).trim();
+  if (!v) return;
+  const n = Number(v);
+  if (!Number.isInteger(n) || n < 0 || n > 365) throw new InputError("Lead time is a whole number of days, 0–365.");
+}
 
 async function listCompat(itemId?: string): Promise<Row[]> {
   const payload = await gatewayFetch({
@@ -242,6 +254,7 @@ export const spareParts: RecordAdapter = {
     const sku = str(record.code).trim();
     const name = str(record.name).trim();
     if (!sku || !name) throw new InputError("A spare part needs a part code and a name.");
+    checkLeadTime(record);
     const created = unwrapOne<Row>(
       await gatewayFetch({
         service: "warehouse",
@@ -279,6 +292,7 @@ export const spareParts: RecordAdapter = {
     if (str(pick(current, "material_class")) !== "spare_part") {
       throw new InputError("That item is not a spare part; edit it in the Inventory app.");
     }
+    checkLeadTime(record);
     const touchesAttrs = SPARE_ATTR_FIELDS.some((key) => record[key] !== undefined);
     const mergedAttrs = touchesAttrs
       ? {

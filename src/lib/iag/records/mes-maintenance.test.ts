@@ -731,3 +731,34 @@ describe("PM templates for planning", () => {
     ).rejects.toThrow(/People per job/);
   });
 });
+
+describe("parts per job", () => {
+  it("send a template's parts as {sku, qty}, and clear them with null on an edit", async () => {
+    await RECORD_ADAPTERS["production:pm-templates"].create!(
+      ctx,
+      record({ code: "PM-B", name: "Bearings", intervalDays: "90", parts: "BRG-6205 × 2\n1 x BELT-A" }),
+    );
+    expect(writes()[0].body?.attrs).toMatchObject({ parts: [{ sku: "BRG-6205", qty: 2 }, { sku: "BELT-A", qty: 1 }] });
+
+    mockFetch.mockClear();
+    await RECORD_ADAPTERS["production:pm-templates"].update!(ctx, "tpl-1", record({ code: "PM-GREASE", parts: "" }));
+    expect(writes()[0].body?.attrs).toEqual({ parts: null });
+    await expect(
+      RECORD_ADAPTERS["production:pm-templates"].update!(ctx, "tpl-1", record({ code: "PM-GREASE", parts: "some bearings" })),
+    ).rejects.toThrow(/not a part line/);
+  });
+
+  it("refuse a lead time that is not whole days", async () => {
+    await expect(
+      RECORD_ADAPTERS["production:spare-parts"].create!(ctx, record({ code: "BRG-1", name: "Bearing", leadTimeDays: "two weeks" })),
+    ).rejects.toThrow(/Lead time/);
+  });
+
+  it("pass the forecast's ref to procurement, so a second click does not order twice", async () => {
+    await RECORD_ADAPTERS["production:purchase-requests"].create!(
+      ctx,
+      record({ part: "BRG-6205", qty: "2", department: "Engineering", ref: "PF-BRG-6205-20270101" }),
+    );
+    expect(writes()[0]).toMatchObject({ path: "/api/v1/purchase-requests", body: { sku: "BRG-6205", qty: 2, ref: "PF-BRG-6205-20270101" } });
+  });
+});
