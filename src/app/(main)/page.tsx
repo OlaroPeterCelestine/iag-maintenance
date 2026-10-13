@@ -138,7 +138,7 @@ export default function MaintenanceDashboardPage() {
             {greeting(hydrated)}
             {sessionUser?.name ? `, ${sessionUser.name.split(" ")[0]}` : ""}
           </h1>
-          <p className="truncate text-xs text-slate-500">Maintenance — machines, work orders, and downtime</p>
+          <p className="truncate text-xs text-slate-500">Engineering and Utilities — machines, work orders, utilities and downtime</p>
         </div>
         {/* Which factory this overview is about. */}
         <FactoryScopeSelect />
@@ -195,7 +195,7 @@ export default function MaintenanceDashboardPage() {
               {recent.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="px-4 py-8 text-center text-slate-500">
-                    No work orders yet. Open Maintenance → Work Orders to raise the first one.
+                    No work orders yet. Open Engineering and Utilities → Work Orders to raise the first one.
                   </td>
                 </tr>
               ) : (

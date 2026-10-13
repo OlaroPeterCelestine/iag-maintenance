@@ -189,7 +189,7 @@ function LoginForm() {
 
           <div className="mt-10 min-h-0 flex-1 pr-2">
             <p className="text-[12px] font-semibold tracking-[0.18em] text-orange-600 uppercase">
-              IAG Maintenance
+              IAG Engineering and Utilities
             </p>
             <h2 className="mt-3 max-w-[26rem] text-[32px] leading-[1.12] font-semibold tracking-tight text-slate-900">
               Sign in to your workspace.

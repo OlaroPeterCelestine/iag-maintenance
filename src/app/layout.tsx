@@ -26,14 +26,14 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "IAG — Maintenance",
-  description: "Inspire Africa Group machinery maintenance: machines, work orders, schedules, and downtime",
-  applicationName: "IAG Maintenance",
+  title: "IAG — Engineering and Utilities",
+  description: "Inspire Africa Group engineering and utilities: machines, maintenance work, schedules, utilities and downtime",
+  applicationName: "IAG Engineering and Utilities",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "IAG Maintenance",
+    title: "IAG Engineering and Utilities",
   },
   formatDetection: {
     telephone: false,

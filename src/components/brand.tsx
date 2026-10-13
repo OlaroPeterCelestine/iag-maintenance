@@ -44,7 +44,7 @@ export function Brand({
               light ? "text-zinc-400" : "text-slate-500",
             )}
           >
-            Production
+            Engineering &amp; Utilities
           </span>
         </span>
       )}

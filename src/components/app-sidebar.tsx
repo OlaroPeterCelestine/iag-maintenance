@@ -394,7 +394,7 @@ function AppSidebarImpl({
                   onClick={navClick}
                   onMouseEnter={() => prefetchRoute(overviewHref)}
                   prefetch
-                  title={isContractorRole(sessionUser?.role) ? "Contractor home" : "Production"}
+                  title={isContractorRole(sessionUser?.role) ? "Contractor home" : "Overview"}
                   className={cn(
                     "relative flex h-8 items-center gap-2.5 rounded-md text-left text-[13px] text-slate-500 transition-colors hover:bg-white hover:text-slate-800",
                     collapsed ? "w-9 justify-center px-0" : "w-full px-2.5",
@@ -404,7 +404,7 @@ function AppSidebarImpl({
                 >
                   <Element3 size={15} variant="Linear" color="currentColor" />
                   {!collapsed && (
-                    <span>{isContractorRole(sessionUser?.role) ? "Home" : "Production"}</span>
+                    <span>{isContractorRole(sessionUser?.role) ? "Home" : "Overview"}</span>
                   )}
                 </Link>
               ) : null}
@@ -541,7 +541,7 @@ function AppSidebarImpl({
           <div>
             {!collapsed && (
               <p className="mb-1.5 px-2 text-[10px] font-medium tracking-[0.06em] text-slate-400">
-                Production
+                Engineering and Utilities
               </p>
             )}
             <div className={cn("space-y-0.5", collapsed && "flex flex-col items-center")}>
