@@ -1462,12 +1462,6 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     group: "Business",
   },
   {
-    id: "reset-data",
-    title: "Clean / Reset Data",
-    description: "Delete test records or wipe this workspace back to a blank slate.",
-    group: "Business",
-  },
-  {
     id: "currencies",
     title: "Base Currency",
     description: "Primary currency for this workspace (e.g. UGX).",
@@ -1534,9 +1528,6 @@ export const SETTINGS_SECTION_ALIASES: Record<string, string> = {
   "manager-io": "import-manager-io",
   "import-manager": "import-manager-io",
   "manager": "import-manager-io",
-  "clean": "reset-data",
-  "reset": "reset-data",
-  "clear-data": "reset-data",
   "theme": "appearance",
   "dark-mode": "appearance",
   "base-currency": "currencies",

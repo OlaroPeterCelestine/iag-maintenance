@@ -9,7 +9,6 @@ import {
 import { BusinessBackupPanel } from "@/components/business-backup-panel";
 import { ChartOfAccountsSelect } from "@/components/chart-of-accounts-select";
 import { ManagerIoImporter } from "@/components/manager-io-importer";
-import { DataResetPanel } from "@/components/data-reset-panel";
 import { ModulePageSkeleton } from "@/components/page-loading";
 import { NotificationsMenu } from "@/components/notifications-menu";
 import { PageMoreMenu } from "@/components/page-more-menu";
@@ -105,8 +104,6 @@ import {
   type UserRow,
 } from "@/lib/manager-settings";
 import { assertPermission, currentUserCan, currentUserIsAdmin } from "@/lib/access-control";
-import { cleanTransactionsSystem } from "@/lib/reset-data";
-import { resetBooksNow } from "@/lib/clear-demo-data";
 import { type ModuleSlug } from "@/lib/module-data";
 import { cn } from "@/lib/utils";
 import { iconForLabel } from "@/lib/iconsax";
@@ -522,11 +519,6 @@ function SettingsPageContent() {
               </PanelCard>
             )}
 
-            {sectionId === "reset-data" && (
-              <PanelCard>
-                <DataResetPanel embedded />
-              </PanelCard>
-            )}
 
             {sectionId === "appearance" && (
               <>
@@ -1448,47 +1440,7 @@ function SettingsPageContent() {
                   >
                     Open Chart of Accounts
                   </Link>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="border-rose-200 text-rose-700 hover:bg-rose-50"
-                    onClick={() => {
-                      askConfirm({
-                        title: "Reset books to zero?",
-                        message:
-                          "Delete all invoices, journals, receipts, payments, and ledger postings from this browser and the database? Masters and Chart of Accounts are kept. Both Balance Sheet and Trial Balance should show clean books after reload.",
-                        confirmLabel: "Reset books",
-                        danger: true,
-                        onConfirm: () => {
-                          void (async () => {
-                            try {
-                              const result = await cleanTransactionsSystem({
-                                clearHistory: true,
-                              });
-                              resetBooksNow();
-                              showSuccess(
-                                "Books cleared",
-                                result.remotePurged
-                                  ? "Browser and database purged. Open Balance Sheet or Trial Balance — both should show 0 and balanced."
-                                  : "Local books cleared (database unreachable). Open Balance Sheet or Trial Balance to verify.",
-                              );
-                              window.setTimeout(() => window.location.reload(), 800);
-                            } catch (error) {
-                              showWarning(
-                                "Reset failed",
-                                error instanceof Error
-                                  ? error.message
-                                  : "Could not reset books.",
-                              );
-                            }
-                          })();
-                        },
-                      });
-                    }}
-                  >
-                    Reset books to zero
-                  </Button>
-                </div>
+                                  </div>
               </PanelCard>
             )}
 
