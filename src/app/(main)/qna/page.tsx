@@ -1,16 +1,11 @@
 "use client";
+import { PageToolbar } from "@/components/page-toolbar";
 
-import { useAppShell } from "@/components/app-shell";
-import { NotificationsMenu } from "@/components/notifications-menu";
-import { PageMoreMenu } from "@/components/page-more-menu";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   ChevronDown,
   Coffee,
   FlaskConical,
-  Menu,
   MessageCircleQuestion,
   PackageCheck,
   Search,
@@ -104,7 +99,6 @@ const CATEGORY_ICONS = {
 } as const;
 
 export default function QaPage() {
-  const { openSidebar } = useAppShell();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
   const categories = ["All", ...new Set(QUESTIONS.map((item) => item.category))];
@@ -121,30 +115,12 @@ export default function QaPage() {
 
   return (
     <>
-      <header className="flex h-11 items-center justify-between border-b border-slate-200/80 bg-white px-3 sm:px-4">
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="lg:hidden"
-            onClick={openSidebar}
-            aria-label="Open navigation"
-          >
-            <Menu size={18} />
-          </Button>
-          <div className="flex items-center gap-2 text-[13px] text-slate-400">
-            <MessageCircleQuestion size={14} />
+      <PageToolbar>
+<MessageCircleQuestion size={14} />
             <Link href={defaultHomePath()} className="hover:text-slate-700">Overview</Link>
             <span>/</span>
             <span className="font-medium text-slate-700">Q&amp;A</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-0.5">
-          <NotificationsMenu />
-          <ThemeToggle />
-          <PageMoreMenu />
-        </div>
-      </header>
+      </PageToolbar>
 
       <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-5 p-4 sm:p-5">
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">

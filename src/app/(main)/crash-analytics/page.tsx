@@ -1,11 +1,9 @@
 "use client";
+import { PageToolbar } from "@/components/page-toolbar";
 
-import { useAppShell } from "@/components/app-shell";
-import { NotificationsMenu } from "@/components/notifications-menu";
-import { PageMoreMenu } from "@/components/page-more-menu";
 import { PaginationBar } from "@/components/pagination-bar";
 import { SegmentTabList, segmentTabClass } from "@/components/segment-tabs";
-import { ThemeToggle } from "@/components/theme-toggle";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { usePagination } from "@/hooks/use-pagination";
@@ -19,7 +17,7 @@ import type {
   CrashIssue,
 } from "@/lib/crash-analytics/types";
 import { downloadSystemReport } from "@/lib/export/system-report";
-import { Danger, DocumentDownload, Global, HambergerMenu, Profile2User, Refresh } from "iconsax-react";
+import { Danger, DocumentDownload, Global, Profile2User, Refresh } from "iconsax-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -77,7 +75,6 @@ const SELECT_CLASS =
   "h-9 rounded-md border border-input bg-white px-2 text-[13px] text-slate-700 outline-none focus:border-ring focus:ring-2 focus:ring-ring/20";
 
 export default function CrashAnalyticsPage() {
-  const { openSidebar } = useAppShell();
   const router = useRouter();
   const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -216,31 +213,13 @@ export default function CrashAnalyticsPage() {
 
   return (
     <>
-      <header className="flex h-11 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white px-3 sm:px-4">
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="lg:hidden"
-            onClick={openSidebar}
-            aria-label="Open navigation"
-          >
-            <HambergerMenu size={18} variant="Linear" color="currentColor" />
-          </Button>
-          <nav className="flex items-center gap-2 text-[13px] text-slate-400">
-            <Link href="/" className="hover:text-slate-700">
+      <PageToolbar>
+<Link href="/" className="hover:text-slate-700">
               Overview
             </Link>
             <span>/</span>
             <span className="font-medium text-slate-700">Crash analytics</span>
-          </nav>
-        </div>
-        <div className="flex items-center gap-0.5">
-          <NotificationsMenu />
-          <ThemeToggle />
-          <PageMoreMenu />
-        </div>
-      </header>
+      </PageToolbar>
 
       <main className="flex w-full flex-col gap-4 p-4 sm:p-5">
         <div className="flex flex-wrap items-end justify-between gap-3">

@@ -1,6 +1,6 @@
 "use client";
+import { PageToolbar } from "@/components/page-toolbar";
 
-import { useAppShell } from "@/components/app-shell";
 import { BankAccountSelect } from "@/components/bank-account-select";
 import {
   BusinessProfileForm,
@@ -10,9 +10,8 @@ import { BusinessBackupPanel } from "@/components/business-backup-panel";
 import { ChartOfAccountsSelect } from "@/components/chart-of-accounts-select";
 import { ManagerIoImporter } from "@/components/manager-io-importer";
 import { ModulePageSkeleton } from "@/components/page-loading";
-import { NotificationsMenu } from "@/components/notifications-menu";
-import { PageMoreMenu } from "@/components/page-more-menu";
-import { ThemeToggle, ThemeModeChooser } from "@/components/theme-toggle";
+
+import { ThemeModeChooser } from "@/components/theme-toggle";
 import { FeedbackModals, useFeedbackModals } from "@/components/feedback-modals";
 import { PaginationBar } from "@/components/pagination-bar";
 import { Button } from "@/components/ui/button";
@@ -107,7 +106,7 @@ import { assertPermission, currentUserCan, currentUserIsAdmin } from "@/lib/acce
 import { type ModuleSlug } from "@/lib/module-data";
 import { cn } from "@/lib/utils";
 import { iconForLabel } from "@/lib/iconsax";
-import { Add, ArrowLeft2, HambergerMenu, Setting2, Trash } from "iconsax-react";
+import { Add, ArrowLeft2, Setting2, Trash } from "iconsax-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
@@ -119,7 +118,6 @@ import {
 } from "@/lib/identity-directory";
 
 function SettingsPageContent() {
-  const { openSidebar } = useAppShell();
   const router = useRouter();
   const searchParams = useSearchParams();
   const rawSection = searchParams.get("section");
@@ -385,19 +383,8 @@ function SettingsPageContent() {
   return (
     <>
       <FeedbackModals feedback={feedback} onClose={close} />
-      <header className="flex h-11 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white px-3 sm:px-4">
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="lg:hidden"
-            onClick={openSidebar}
-            aria-label="Open navigation"
-          >
-            <HambergerMenu size={18} variant="Linear" color="currentColor" />
-          </Button>
-          <div className="flex items-center gap-2 text-[13px] text-slate-400">
-            <Setting2 size={14} variant="Linear" color="currentColor" />
+      <PageToolbar>
+<Setting2 size={14} variant="Linear" color="currentColor" />
             <Link href="/" className="hover:text-slate-700">
               Overview
             </Link>
@@ -409,14 +396,7 @@ function SettingsPageContent() {
                 <span className="font-medium text-slate-700">{activeSection.title}</span>
               </>
             ) : null}
-          </div>
-        </div>
-        <div className="flex items-center gap-0.5">
-          <NotificationsMenu />
-          <ThemeToggle />
-          <PageMoreMenu />
-        </div>
-      </header>
+      </PageToolbar>
 
       <div className="min-h-0 flex-1 overflow-y-auto bg-[#f7f7f8]">
         <div className="w-full px-4 py-5 sm:px-6 sm:py-6">
@@ -518,7 +498,6 @@ function SettingsPageContent() {
                 <ManagerIoImporter embedded />
               </PanelCard>
             )}
-
 
             {sectionId === "appearance" && (
               <>
@@ -1440,7 +1419,7 @@ function SettingsPageContent() {
                   >
                     Open Chart of Accounts
                   </Link>
-                                  </div>
+                </div>
               </PanelCard>
             )}
 

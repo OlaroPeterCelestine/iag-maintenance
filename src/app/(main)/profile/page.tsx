@@ -1,10 +1,8 @@
 "use client";
+import { PageToolbar } from "@/components/page-toolbar";
 
 import { ChangePasswordForm } from "@/components/change-password-dialog";
-import { useAppShell } from "@/components/app-shell";
-import { NotificationsMenu } from "@/components/notifications-menu";
-import { PageMoreMenu } from "@/components/page-more-menu";
-import { ThemeToggle } from "@/components/theme-toggle";
+
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,11 +37,8 @@ import {
   Calendar,
   Call,
   Clock,
-  Edit2,
-  HambergerMenu,
   Key,
   Location,
-  Logout,
   Profile,
   ShieldTick,
   Sms,
@@ -52,7 +47,6 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 export default function ProfilePage() {
-  const { openSidebar } = useAppShell();
   const [user, setUser] = useState<SessionUser | null>(null);
   const [business, setBusiness] = useState<SessionBusiness | null>(null);
   const [canEditSettings, setCanEditSettings] = useState(false);
@@ -151,49 +145,13 @@ export default function ProfilePage() {
 
   return (
     <>
-      <header className="flex h-11 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white px-3 sm:px-4">
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="lg:hidden"
-            onClick={openSidebar}
-            aria-label="Open navigation"
-          >
-            <HambergerMenu size={18} variant="Linear" color="currentColor" />
-          </Button>
-          <div className="flex items-center gap-2 text-[13px] text-slate-400">
-            <Link href="/" className="hover:text-slate-700">
+      <PageToolbar>
+<Link href="/" className="hover:text-slate-700">
               Overview
             </Link>
             <span>/</span>
             <span className="font-medium text-slate-700">Profile</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-0.5">
-          <NotificationsMenu />
-          <ThemeToggle />
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-slate-600"
-            onClick={onSignOut}
-          >
-            <Logout size={14} variant="Linear" color="currentColor" />
-            Sign out
-          </Button>
-          {canEditSettings ? (
-            <Link
-              href="/users"
-              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-3 text-sm font-medium text-white hover:bg-slate-800"
-            >
-              <Edit2 size={14} variant="Linear" color="currentColor" />
-              Edit users
-            </Link>
-          ) : null}
-          <PageMoreMenu />
-        </div>
-      </header>
+      </PageToolbar>
 
       <main className="w-full p-4 sm:p-5">
         <div className="w-full space-y-4">

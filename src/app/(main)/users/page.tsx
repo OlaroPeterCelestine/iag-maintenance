@@ -1,10 +1,8 @@
 "use client";
+import { PageToolbar } from "@/components/page-toolbar";
 
-import { useAppShell } from "@/components/app-shell";
-import { NotificationsMenu } from "@/components/notifications-menu";
-import { PageMoreMenu } from "@/components/page-more-menu";
 import { PaginationBar } from "@/components/pagination-bar";
-import { ThemeToggle } from "@/components/theme-toggle";
+
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -66,7 +64,7 @@ import {
   type UserRow,
 } from "@/lib/manager-settings";
 import { NAV_MODULES } from "@/lib/module-data";
-import { Add, HambergerMenu, Profile2User, Trash } from "iconsax-react";
+import { Add, Profile2User, Trash } from "iconsax-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, Fragment, Suspense } from "react";
@@ -356,7 +354,6 @@ export default function UsersPage() {
 }
 
 function UsersPageInner() {
-  const { openSidebar } = useAppShell();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [users, setUsers] = useState<UserRow[]>([]);
@@ -1097,31 +1094,13 @@ function UsersPageInner() {
 
   return (
     <>
-      <header className="flex h-11 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white px-3 sm:px-4">
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="lg:hidden"
-            onClick={openSidebar}
-            aria-label="Open navigation"
-          >
-            <HambergerMenu size={18} variant="Linear" color="currentColor" />
-          </Button>
-          <div className="flex items-center gap-2 text-[13px] text-slate-400">
-            <Link href="/" className="hover:text-slate-700">
+      <PageToolbar>
+<Link href="/" className="hover:text-slate-700">
               Overview
             </Link>
             <span>/</span>
             <span className="font-medium text-slate-700">Users & roles</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-0.5">
-          <NotificationsMenu />
-          <ThemeToggle />
-          <PageMoreMenu />
-        </div>
-      </header>
+      </PageToolbar>
 
       <main className="w-full space-y-4 p-4 sm:p-5">
         {!OWNS_IDENTITY_DIRECTORY ? (

@@ -1,4 +1,5 @@
 "use client";
+import { PageToolbar } from "@/components/page-toolbar";
 
 /**
  * Presentation for the System health page.
@@ -9,10 +10,6 @@
  * access check lives here — see @/lib/system-health/view.ts.
  */
 
-import { useAppShell } from "@/components/app-shell";
-import { NotificationsMenu } from "@/components/notifications-menu";
-import { PageMoreMenu } from "@/components/page-more-menu";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { appToastError } from "@/lib/app-toast";
 import {
@@ -27,7 +24,7 @@ import type {
   SystemHealthReport,
   SystemHealthView,
 } from "@/lib/system-health/types";
-import { Activity, DocumentDownload, HambergerMenu, Refresh } from "iconsax-react";
+import { Activity, DocumentDownload, Refresh } from "iconsax-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -78,7 +75,6 @@ export function SystemHealthScreen({
   initialView: SystemHealthView;
   initialReport: SystemHealthReport;
 }) {
-  const { openSidebar } = useAppShell();
   const [view, setView] = useState(initialView);
   const [report, setReport] = useState(initialReport);
   const [client, setClient] = useState<ClientPerformanceView | null>(null);
@@ -155,31 +151,13 @@ export function SystemHealthScreen({
 
   return (
     <>
-      <header className="flex h-11 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white px-3 sm:px-4">
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="lg:hidden"
-            onClick={openSidebar}
-            aria-label="Open navigation"
-          >
-            <HambergerMenu size={18} variant="Linear" color="currentColor" />
-          </Button>
-          <nav className="flex items-center gap-2 text-[13px] text-slate-400">
-            <Link href="/" className="hover:text-slate-700">
+      <PageToolbar>
+<Link href="/" className="hover:text-slate-700">
               Overview
             </Link>
             <span>/</span>
             <span className="font-medium text-slate-700">System health</span>
-          </nav>
-        </div>
-        <div className="flex items-center gap-0.5">
-          <NotificationsMenu />
-          <ThemeToggle />
-          <PageMoreMenu />
-        </div>
-      </header>
+      </PageToolbar>
 
       <main className="flex w-full flex-col gap-4 p-4 sm:p-5">
         <div className="flex flex-wrap items-end justify-between gap-3">

@@ -1,19 +1,14 @@
 "use client";
+import { PageToolbar } from "@/components/page-toolbar";
 
-import { useAppShell } from "@/components/app-shell";
-import { NotificationsMenu } from "@/components/notifications-menu";
-import { PageMoreMenu } from "@/components/page-more-menu";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { defaultHomePath } from "@/lib/access-control";
 import { latestRelease, RELEASE_NOTES } from "@/lib/release-notes";
-import { ExternalLink, Menu, Search, StickyNote } from "lucide-react";
+import { ExternalLink, Search, StickyNote } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
 export default function ReleaseNotesPage() {
-  const { openSidebar } = useAppShell();
   const [query, setQuery] = useState("");
 
   const filtered = useMemo(() => {
@@ -35,32 +30,14 @@ export default function ReleaseNotesPage() {
 
   return (
     <>
-      <header className="flex h-11 items-center justify-between border-b border-slate-200/80 bg-white px-3 sm:px-4">
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="lg:hidden"
-            onClick={openSidebar}
-            aria-label="Open navigation"
-          >
-            <Menu size={18} />
-          </Button>
-          <div className="flex items-center gap-2 text-[13px] text-slate-400">
-            <StickyNote size={14} />
+      <PageToolbar>
+<StickyNote size={14} />
             <Link href={defaultHomePath()} className="hover:text-slate-700">
               Overview
             </Link>
             <span>/</span>
             <span className="font-medium text-slate-700">Release notes</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-0.5">
-          <NotificationsMenu />
-          <ThemeToggle />
-          <PageMoreMenu />
-        </div>
-      </header>
+      </PageToolbar>
 
       <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-5 p-4 sm:p-5">
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">

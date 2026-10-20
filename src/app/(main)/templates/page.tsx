@@ -1,10 +1,8 @@
 "use client";
+import { PageToolbar } from "@/components/page-toolbar";
 
-import { useAppShell } from "@/components/app-shell";
 import { FeedbackModals, useFeedbackModals } from "@/components/feedback-modals";
-import { NotificationsMenu } from "@/components/notifications-menu";
-import { PageMoreMenu } from "@/components/page-more-menu";
-import { ThemeToggle } from "@/components/theme-toggle";
+
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -58,10 +56,8 @@ import {
   Check,
   DocumentDownload,
   Eye,
-  HambergerMenu,
   Layer,
   Printer,
-  Setting2,
   TickCircle,
 } from "iconsax-react";
 import Link from "next/link";
@@ -97,7 +93,6 @@ function previewRecord(target: AccountingDocumentDef): ManagerRecord | null {
 }
 
 export default function TemplatesPage() {
-  const { openSidebar } = useAppShell();
   const { feedback, close, showSuccess, showWarning } = useFeedbackModals();
   const [ready, setReady] = useState(false);
   const [selection, setSelection] = useState<TemplateSelection | null>(null);
@@ -311,39 +306,14 @@ export default function TemplatesPage() {
     <>
       <FeedbackModals feedback={feedback} onClose={close} />
 
-      <header className="flex h-11 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white px-3 sm:px-4">
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="lg:hidden"
-            onClick={openSidebar}
-            aria-label="Open navigation"
-          >
-            <HambergerMenu size={18} variant="Linear" color="currentColor" />
-          </Button>
-          <div className="flex items-center gap-2 text-[13px] text-slate-400">
-            <Layer size={14} variant="Linear" color="currentColor" />
+      <PageToolbar>
+<Layer size={14} variant="Linear" color="currentColor" />
             <Link href={defaultHomePath()} className="hover:text-slate-700">
               Overview
             </Link>
             <span>/</span>
             <span className="font-medium text-slate-700">Document templates</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-0.5">
-          <NotificationsMenu />
-          <ThemeToggle />
-          <Link
-            href="/settings?section=footers"
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
-          >
-            <Setting2 size={14} variant="Linear" color="currentColor" />
-            Footers
-          </Link>
-          <PageMoreMenu />
-        </div>
-      </header>
+      </PageToolbar>
 
       <main className="mx-auto w-full max-w-[1400px] px-3 py-5 sm:px-5">
         <div className="mb-5 flex flex-wrap items-end justify-between gap-3">

@@ -1,9 +1,6 @@
 "use client";
 
-import { useAppShell } from "@/components/app-shell";
-import { NotificationsMenu } from "@/components/notifications-menu";
-import { PageMoreMenu } from "@/components/page-more-menu";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { PageToolbar } from "@/components/page-toolbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -23,7 +20,6 @@ import {
   FileText,
   LayoutGrid,
   List,
-  Menu,
   Search,
 } from "lucide-react";
 import Link from "next/link";
@@ -33,7 +29,6 @@ import { useMemo, useState } from "react";
 type ViewMode = "all" | "chapters" | "pages";
 
 export default function GuidesPage() {
-  const { openSidebar } = useAppShell();
   const [query, setQuery] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("pages");
   const [requiredOnly, setRequiredOnly] = useState(false);
@@ -82,19 +77,7 @@ export default function GuidesPage() {
 
   return (
     <>
-      <header className="flex h-11 items-center justify-between border-b border-slate-200/80 bg-white px-3 sm:px-4">
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="lg:hidden"
-            onClick={openSidebar}
-            aria-label="Open navigation"
-          >
-            <Menu size={18} />
-          </Button>
-          <div className="flex items-center gap-2 text-[13px] text-slate-400">
-            <BookOpen size={14} />
+      <PageToolbar icon={<BookOpen size={14} />}>
             <Link href={defaultHomePath()} className="hover:text-slate-700">
               Overview
             </Link>
@@ -126,14 +109,7 @@ export default function GuidesPage() {
             ) : (
               <span className="font-medium text-slate-700">Guides</span>
             )}
-          </div>
-        </div>
-        <div className="flex items-center gap-0.5">
-          <NotificationsMenu />
-          <ThemeToggle />
-          <PageMoreMenu />
-        </div>
-      </header>
+      </PageToolbar>
 
       <div className="flex w-full flex-1 flex-col gap-4 p-4 sm:p-5">
         {showingHome ? (

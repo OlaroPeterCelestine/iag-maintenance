@@ -1,10 +1,8 @@
 "use client";
+import { PageToolbar } from "@/components/page-toolbar";
 
-import { useAppShell } from "@/components/app-shell";
 import { FeedbackModals, useFeedbackModals } from "@/components/feedback-modals";
-import { NotificationsMenu } from "@/components/notifications-menu";
-import { PageMoreMenu } from "@/components/page-more-menu";
-import { ThemeToggle } from "@/components/theme-toggle";
+
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -41,7 +39,6 @@ import {
   DocumentDownload,
   DocumentText,
   Eye,
-  HambergerMenu,
   Printer,
   Refresh,
   TickCircle,
@@ -197,7 +194,6 @@ function DocumentRow({
 
 export default function AccountingDocumentsPage() {
   const router = useRouter();
-  const { openSidebar } = useAppShell();
   const { feedback, close, showSuccess, showWarning } = useFeedbackModals();
   const hydrated = useMounted();
   const [tick, setTick] = useState(0);
@@ -329,38 +325,14 @@ export default function AccountingDocumentsPage() {
     <>
       <FeedbackModals feedback={feedback} onClose={close} />
 
-      <header className="flex h-11 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white px-3 sm:px-4">
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="lg:hidden"
-            onClick={openSidebar}
-            aria-label="Open navigation"
-          >
-            <HambergerMenu size={18} variant="Linear" color="currentColor" />
-          </Button>
-          <div className="flex items-center gap-2 text-[13px] text-slate-400">
-            <DocumentText size={14} variant="Linear" color="currentColor" />
+      <PageToolbar>
+<DocumentText size={14} variant="Linear" color="currentColor" />
             <Link href={defaultHomePath()} className="hover:text-slate-700">
               Overview
             </Link>
             <span>/</span>
             <span className="font-medium text-slate-700">Accounting documents</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-0.5">
-          <NotificationsMenu />
-          <ThemeToggle />
-          <Link
-            href="/templates"
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
-          >
-            Templates
-          </Link>
-          <PageMoreMenu />
-        </div>
-      </header>
+      </PageToolbar>
 
       <main className="w-full px-3 py-5 sm:px-4 lg:px-6">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
