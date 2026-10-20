@@ -42,6 +42,11 @@ import {
 } from "@/lib/iag/records/maintenance-extras";
 import { energy, machinePerformance } from "@/lib/iag/records/energy-kpis";
 import { plants, sections } from "@/lib/iag/records/factories";
+import {
+  parseComponents,
+  serialiseComponents,
+  type BomLineInput,
+} from "@/lib/iag/records/bom-lines";
 import { jobCosts, labourRates, machineCosts, partsUsed } from "@/lib/iag/records/maintenance-costs";
 import { budgetDepartments, purchaseRequests } from "@/lib/iag/records/purchase-requests";
 import {
@@ -425,8 +430,112 @@ const yieldReports: RecordAdapter = {
   },
 };
 
+const SCHEDULE_WINDOW_DAYS = 180;
+
+function scheduleWindow(): Record<string, string> {
+  const day = 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  return {
+    from: new Date(now - SCHEDULE_WINDOW_DAYS * day).toISOString(),
+    to: new Date(now + SCHEDULE_WINDOW_DAYS * day).toISOString(),
+  };
+}
+
+const billOfMaterials = resourceAdapter({
+  service: "production",
+  path: "/api/v1/boms",
+  idField: "business_id",
+  itemPath: (id) => `/api/v1/boms/${encodeURIComponent(id)}`,
+  toRecord: (row: Row) => ({
+    name: str(pick(row, "name")),
+    code: str(pick(row, "business_id")),
+    finishedItem: str(pick(row, "finished_item")),
+    version: str(pick(row, "version")),
+    components: serialiseComponents(pick(row, "lines") as BomLineInput[] | undefined),
+    batchSize: money(pick(row, "batch_size")),
+    unit: str(pick(row, "unit")),
+    status: titleCase(str(pick(row, "status"))) || "Draft",
+    notes: str(pick(row, "notes")),
+    attachments: attachmentsJson(pick(attrs(row), "attachments")),
+    createdAt: "",
+    updatedAt: "",
+  }),
+  fromRecord: (record) =>
+    omitEmpty({
+      business_id: record.code,
+      name: record.name,
+      finished_item: record.finishedItem,
+      version: record.version,
+      batch_size: Number(record.batchSize) || undefined,
+      unit: record.unit,
+      status: snakeCase(record.status),
+      notes: record.notes,
+      lines: record.components ? parseComponents(record.components) : undefined,
+      attrs: attrsOrOmit({ attachments: attachmentRefs(record.attachments) }),
+    }),
+  updateMethod: "PATCH",
+});
+
+function planToRecord(row: Row): Omit<AppRecord, "id"> & { id?: string } {
+  const extra = attrs(row);
+  return {
+    id: str(pick(row, "id")),
+    reference: str(pick(extra, "reference")) || str(pick(row, "label")),
+    date: isoDate(pick(extra, "date")) || isoDate(pick(row, "created_at")),
+    weekOf: isoDate(pick(row, "starts_at")),
+    product: str(pick(extra, "product")) || str(pick(row, "label")),
+    plannedQuantity: str(pick(extra, "plannedQuantity")),
+    workCenter: str(pick(row, "asset_tag")),
+    owner: str(pick(extra, "owner")),
+    status: str(pick(extra, "status")) || "Planned",
+    notes: str(pick(extra, "notes")),
+    createdAt: str(pick(row, "created_at")),
+    updatedAt: str(pick(row, "created_at")),
+  };
+}
+
+function weekEnd(weekOf: string): string | undefined {
+  const start = Date.parse(weekOf);
+  if (!Number.isFinite(start)) return undefined;
+  return new Date(start + 7 * 24 * 60 * 60 * 1000).toISOString();
+}
+
+const productionPlans = resourceAdapter({
+  service: "production",
+  path: "/api/v1/schedule-blocks",
+  listQuery: scheduleWindow,
+  toRecord: planToRecord,
+  fromRecord: (record) =>
+    omitEmpty({
+      asset_tag: record.workCenter,
+      block_type: "plan",
+      label: record.product || record.reference,
+      starts_at: rfc3339(record.weekOf || record.date),
+      ends_at: weekEnd(record.weekOf || record.date),
+      attrs: attrsOrOmit({
+        reference: record.reference,
+        date: record.date,
+        product: record.product,
+        plannedQuantity: record.plannedQuantity,
+        owner: record.owner,
+        status: record.status,
+        notes: record.notes,
+      }),
+    }),
+  noUpdate: true,
+  noDelete: true,
+});
+
+export const UNOWNED_ENTITIES: Record<string, string> = {
+  "documents:folders": "App plumbing over the legacy store.",
+  "documents:history": "App plumbing over the legacy store.",
+  "documents:deleted-records": "App plumbing over the legacy store.",
+};
+
 export const RECORD_ADAPTERS: Record<string, RecordAdapter> = {
   "documents:attachments": attachments,
+  "production:bill-of-materials": billOfMaterials,
+  "production:production-plans": productionPlans,
   // iag-mes — the maintenance tabs
   "production:work-centers": assets,
   "production:work-orders": workOrders,
