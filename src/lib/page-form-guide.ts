@@ -91,8 +91,8 @@ const PAGE_MEANING: Record<string, string> = {
     "Reports are the financial statements and control listings. Balance sheet, profit and loss, cash flow, trial balance, and equity statements read the ledger. Aged receivables and payables, customer and supplier statements, tax, and inventory value summarise subledgers. Most of these are generated from posted records. Where a form exists, it only stores the report name and the period you want.",
   tracking:
     "Tracking shows live vehicle positions and playback of where a vehicle has been. Positions come from the vehicle records and the telemetry track. This page is a map, not a form you fill in.",
-  cms:
-    "CMS is website and campaign content: pages, posts, media, categories, menus, banners, and authors. Each form is one piece of content you publish or keep as a draft.",
+  auditor:
+    "Auditor is the internal audit workspace. Engagements are the jobs. Programs are the procedures. Workpapers hold the evidence. Findings, controls, recommendations, and follow-ups record what was wrong, what should control it, and whether management closed it.",
   "farmer-traceability":
     "Farmer Traceability follows product from farm to lot. Farmers, farms, plots, and crops are the source. Harvest lots, collections, certifications, and trace codes record what was picked, gathered, certified, and how it can be traced.",
 };
@@ -458,13 +458,13 @@ const RECORD_PAGE_DESCRIPTION: Record<string, string> = {
   "reports|Tax Summary": "Output tax, input tax, and the net amount for the period.",
   "reports|Inventory Value Summary": "Stock quantity and value by item or location.",
 
-  "cms|Authors": "People who can be named as the author of a page or post.",
-  "cms|Banners": "Promotional banners shown on the site, with where they appear.",
-  "cms|Categories": "Groups that posts and pages are filed under.",
-  "cms|Media": "Images and files uploaded for use on pages and posts.",
-  "cms|Menus": "The navigation menus on the site, and the links in each.",
-  "cms|Pages": "A website page: title, body, and whether it is published.",
-  "cms|Posts": "A news or blog post, with its category and publish state.",
+  "auditor|Engagements": "An audit job: the area, the lead auditor, the period, and whether it is planned, in fieldwork, or closed.",
+  "auditor|Audit Programs": "The procedures the auditor will perform on an engagement.",
+  "auditor|Workpapers": "The evidence file for a procedure, with who prepared it and who reviewed it.",
+  "auditor|Findings": "What the auditor found, how serious it is, and the criteria, condition, cause, and effect.",
+  "auditor|Controls": "A control the auditor tested, and whether its design and operation are effective.",
+  "auditor|Recommendations": "The action agreed with management, who owns it, and when it is due.",
+  "auditor|Audit Follow-ups": "A later check that the agreed action was actually done.",
 
   "contract-manager|Action Items": "A task still open on a contract, and who owns it.",
   "contract-manager|Approval Rules": "Who must approve a contract step, and in what order.",
