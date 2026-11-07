@@ -44,10 +44,14 @@ export function PersistFailureToaster() {
       lastRef.current = { key: dedupeKey, at: now };
 
       if (kind === "hydrate") {
-        // Boot "API unreachable" was noisy and often wrong (Strict Mode double
-        // hydrate, auth races). Soft-fail silently — save paths still surface
-        // real durability errors.
-        if (/unreachable|Go API is online/i.test(message)) {
+        // Boot unreachable / per-list refresh misses are noisy and often wrong
+        // (Strict Mode, auth races, optional legacy host). Soft-fail silently —
+        // user-triggered saves still surface real durability errors.
+        if (
+          /unreachable|Go API is online|Could not load this list from the database|Showing last tab data/i.test(
+            message,
+          )
+        ) {
           return;
         }
         appToastWarning("Data not fully loaded", message);
@@ -59,6 +63,18 @@ export function PersistFailureToaster() {
           "Session expired",
           "Sign in again to save changes to the database.",
         );
+        return;
+      }
+      // Optional legacy ERP / missing GO_API_* / unmapped passthrough — not a
+      // failed platform save. IAG services use the signed-in session via the
+      // gateway; these messages only mean prefs/unmapped collections could not
+      // sync to an old Go host.
+      if (
+        kind === "settings-unavailable" ||
+        /GO_API_KEY|API_KEY or GO_API_KEY|does not accept an IAG platform session|optional legacy ERP|GO_API_URL|no backend in this deployment|IAG_UNMAPPED_MODE/i.test(
+          message,
+        )
+      ) {
         return;
       }
       appToastError("Not saved to database", message);

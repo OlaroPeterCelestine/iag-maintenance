@@ -1,6 +1,6 @@
 "use client";
-import { PageToolbar } from "@/components/page-toolbar";
 
+import { useAppShell } from "@/components/app-shell";
 import { BankAccountSelect } from "@/components/bank-account-select";
 import {
   BusinessProfileForm,
@@ -9,9 +9,11 @@ import {
 import { BusinessBackupPanel } from "@/components/business-backup-panel";
 import { ChartOfAccountsSelect } from "@/components/chart-of-accounts-select";
 import { ManagerIoImporter } from "@/components/manager-io-importer";
+import { DataResetPanel } from "@/components/data-reset-panel";
 import { ModulePageSkeleton } from "@/components/page-loading";
-
-import { ThemeModeChooser } from "@/components/theme-toggle";
+import { NotificationsMenu } from "@/components/notifications-menu";
+import { PageMoreMenu } from "@/components/page-more-menu";
+import { ThemeToggle, ThemeModeChooser } from "@/components/theme-toggle";
 import { FeedbackModals, useFeedbackModals } from "@/components/feedback-modals";
 import { PaginationBar } from "@/components/pagination-bar";
 import { Button } from "@/components/ui/button";
@@ -103,14 +105,17 @@ import {
   type UserRow,
 } from "@/lib/manager-settings";
 import { assertPermission, currentUserCan, currentUserIsAdmin } from "@/lib/access-control";
+import { cleanTransactionsSystem } from "@/lib/reset-data";
+import { resetBooksNow } from "@/lib/clear-demo-data";
 import { type ModuleSlug } from "@/lib/module-data";
 import { cn } from "@/lib/utils";
 import { iconForLabel } from "@/lib/iconsax";
-import { Add, ArrowLeft2, Setting2, Trash } from "iconsax-react";
+import { Add, ArrowLeft2, HambergerMenu, Setting2, Trash } from "iconsax-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
 import { appToastError } from "@/lib/app-toast";
+import { areSettingsWritesStoodDown } from "@/lib/db/sync";
 import {
   IDENTITY_MANAGED_ELSEWHERE,
   OWNS_IDENTITY_DIRECTORY,
@@ -118,6 +123,7 @@ import {
 } from "@/lib/identity-directory";
 
 function SettingsPageContent() {
+  const { openSidebar } = useAppShell();
   const router = useRouter();
   const searchParams = useSearchParams();
   const rawSection = searchParams.get("section");
@@ -285,6 +291,7 @@ function SettingsPageContent() {
     void (async () => {
       const ok = await saveManagerSettings(next);
       if (!ok) {
+        if (areSettingsWritesStoodDown()) return;
         setSettings(previous);
         showWarning(
           "Not saved to database",
@@ -333,6 +340,7 @@ function SettingsPageContent() {
         }),
       ]);
       if (!settingsOk || !logoOk) {
+        if (areSettingsWritesStoodDown()) return;
         showWarning(
           "Not saved to database",
           "Business details stayed in this tab only. Check your connection and try again.",
@@ -383,8 +391,19 @@ function SettingsPageContent() {
   return (
     <>
       <FeedbackModals feedback={feedback} onClose={close} />
-      <PageToolbar>
-<Setting2 size={14} variant="Linear" color="currentColor" />
+      <header className="flex h-11 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white px-3 sm:px-4">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="lg:hidden"
+            onClick={openSidebar}
+            aria-label="Open navigation"
+          >
+            <HambergerMenu size={18} variant="Linear" color="currentColor" />
+          </Button>
+          <div className="flex items-center gap-2 text-[13px] text-slate-400">
+            <Setting2 size={14} variant="Linear" color="currentColor" />
             <Link href="/" className="hover:text-slate-700">
               Overview
             </Link>
@@ -396,7 +415,14 @@ function SettingsPageContent() {
                 <span className="font-medium text-slate-700">{activeSection.title}</span>
               </>
             ) : null}
-      </PageToolbar>
+          </div>
+        </div>
+        <div className="flex items-center gap-0.5">
+          <NotificationsMenu />
+          <ThemeToggle />
+          <PageMoreMenu />
+        </div>
+      </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto bg-[#f7f7f8]">
         <div className="w-full px-4 py-5 sm:px-6 sm:py-6">
@@ -496,6 +522,12 @@ function SettingsPageContent() {
             {sectionId === "import-manager-io" && (
               <PanelCard>
                 <ManagerIoImporter embedded />
+              </PanelCard>
+            )}
+
+            {sectionId === "reset-data" && (
+              <PanelCard>
+                <DataResetPanel embedded />
               </PanelCard>
             )}
 
@@ -1419,6 +1451,46 @@ function SettingsPageContent() {
                   >
                     Open Chart of Accounts
                   </Link>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-rose-200 text-rose-700 hover:bg-rose-50"
+                    onClick={() => {
+                      askConfirm({
+                        title: "Reset books to zero?",
+                        message:
+                          "Delete all invoices, journals, receipts, payments, and ledger postings from this browser and the database? Masters and Chart of Accounts are kept. Both Balance Sheet and Trial Balance should show clean books after reload.",
+                        confirmLabel: "Reset books",
+                        danger: true,
+                        onConfirm: () => {
+                          void (async () => {
+                            try {
+                              const result = await cleanTransactionsSystem({
+                                clearHistory: true,
+                              });
+                              resetBooksNow();
+                              showSuccess(
+                                "Books cleared",
+                                result.remotePurged
+                                  ? "Browser and database purged. Open Balance Sheet or Trial Balance — both should show 0 and balanced."
+                                  : "Local books cleared (database unreachable). Open Balance Sheet or Trial Balance to verify.",
+                              );
+                              window.setTimeout(() => window.location.reload(), 800);
+                            } catch (error) {
+                              showWarning(
+                                "Reset failed",
+                                error instanceof Error
+                                  ? error.message
+                                  : "Could not reset books.",
+                              );
+                            }
+                          })();
+                        },
+                      });
+                    }}
+                  >
+                    Reset books to zero
+                  </Button>
                 </div>
               </PanelCard>
             )}

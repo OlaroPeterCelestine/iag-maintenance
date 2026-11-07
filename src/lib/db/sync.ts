@@ -1336,14 +1336,7 @@ export async function hydrateEntityFromDatabase(
     }
     // Network / auth failure — keep whatever is already in the tab.
     if (remote === null) {
-      if (local.length) {
-        notifyPersistFailed({
-          kind: "hydrate",
-          key: `${moduleSlug}/${entityKey}`,
-          error:
-            "Could not load this list from the database. Showing last tab data until refresh succeeds.",
-        });
-      }
+      // Keep tab data. Hydrate never toasts — real save failures still notify.
       return local;
     }
     return commitRemoteRecordsToMemory(moduleSlug, entityKey, remote, knownAfter);
@@ -2030,6 +2023,12 @@ function rememberSettingRevision(key: string, revision: string | undefined | nul
 // One 401 stands the rest down for a cooldown. Nothing is lost: the value is
 // already in memory and a later write retries after it expires.
 let settingsWriteBlockedUntil = 0;
+
+/** True while settings writes are stood down (missing legacy route / config gap). */
+export function areSettingsWritesStoodDown(): boolean {
+  return typeof window !== "undefined" && Date.now() < settingsWriteBlockedUntil;
+}
+
 const SETTINGS_WRITE_BLOCK_MS = 30_000;
 
 export async function persistSettingToDb(
@@ -2683,6 +2682,23 @@ export async function hydrateFromDatabase(
     let changed = migrated;
     let remoteHadData = false;
 
+    // Wait for the session to be accepted before any data pull. Hydrate used
+    // to race login and treat 401s as "database unreachable".
+    try {
+      const { waitForDataAccess, isWithinLoginGrace } = await import("@/lib/api-auth");
+      const ready = await waitForDataAccess({
+        attempts: 6,
+        delayMs: 250,
+        budgetMs: 2_000,
+        timeoutMs: 2_500,
+      });
+      if (!ready && !isWithinLoginGrace()) {
+        console.error("[sync] hydrate auth gate: data access not confirmed yet");
+      }
+    } catch {
+      /* proceed — bootstrap/ready are the hard checks */
+    }
+
     // Bootstrap is the availability check — extra health probes used to add
     // several seconds of RTT before any data arrived.
     let bootstrap: SyncBootstrap | null = null;
@@ -2727,15 +2743,8 @@ export async function hydrateFromDatabase(
           !isWithinLoginGrace() &&
           shouldToastApiUnreachable()
         ) {
-          window.dispatchEvent(
-            new CustomEvent("financeiag-persist-failed", {
-              detail: {
-                kind: "hydrate",
-                key: "database",
-                error:
-                  "Database API unreachable. Forms cannot save until the Go API is online.",
-              },
-            }),
+          console.error(
+            "[sync] Database API unreachable on hydrate — forms cannot save until the API is online.",
           );
         }
         hydrateBusy = false;
@@ -3039,15 +3048,8 @@ export async function hydrateFromDatabase(
           !getMemoryLedgerAccounts().length &&
           !getMemoryLedgerLines().length;
         if (stillEmpty && typeof window !== "undefined") {
-          window.dispatchEvent(
-            new CustomEvent("financeiag-persist-failed", {
-              detail: {
-                kind: "hydrate",
-                key: "records",
-                error:
-                  "Signed in, but business data could not be loaded. Hard-refresh, or sign out and sign in again. Use one host only (localhost or 127.0.0.1).",
-              },
-            }),
+          console.error(
+            "[sync] Signed in, but business data could not be loaded on hydrate. Hard-refresh, or sign out and sign in again. Use one host only (localhost or 127.0.0.1).",
           );
         }
       }

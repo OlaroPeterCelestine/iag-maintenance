@@ -139,6 +139,19 @@ export async function legacyProxy(
   // server's own Go credential when one is configured; without it the request
   // goes through as-is and Go answers 401 — turned into an actionable 503 below.
   const legacyAuth = await legacyAuthHeaders();
+  if (adapterEnabled() && !legacyAuth && !legacyAuthConfigured()) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          "This route still goes to the optional legacy ERP API (GO_API_URL), " +
+          "not iag-maintenance. Product data uses your platform session via the " +
+          "gateway and needs no API key. Unset GO_API_URL for an IAG-only " +
+          "deploy, or set API_KEY for the old ERP if you still run it.",
+      },
+      { status: 501 },
+    );
+  }
   if (legacyAuth) {
     headers.delete("authorization");
     headers.delete("cookie");
@@ -170,19 +183,9 @@ export async function legacyProxy(
     );
   }
 
-  // A 401 here is a server misconfiguration wearing a user's error message.
-  //
-  // The Go API keeps its own user table and signs with its own secret, so the
-  // caller's platform session means nothing to it. With no Go credential
-  // configured the request goes through unauthenticated and Go replies
-  // "Unauthorized. Sign in and send Authorization: Bearer <token>" — which the
-  // app then shows to somebody who *is* signed in, on a screen they cannot fix
-  // by signing in again. It also puts the client's 401 machinery through a
-  // confirmation probe on every unmapped read.
-  //
-  // Answer with what is actually wrong and which variable fixes it. 503 rather
-  // than 401 because the missing credential is the server's, not the user's —
-  // the same status this file already returns when no backend is configured.
+  // Config gap / not served — 501, not 503. Settings treat 5xx as transient
+  // and would otherwise retry into "Not saved to database / Set GO_API_KEY"
+  // toasts. IAG product data uses the platform session via the gateway.
   if (
     (upstream.status === 401 || upstream.status === 403) &&
     adapterEnabled() &&
@@ -192,13 +195,12 @@ export async function legacyProxy(
       {
         ok: false,
         error:
-          "The shared Go API rejected this request: it has its own user table " +
-          "and does not accept an IAG platform session. Set API_KEY or GO_API_KEY (or " +
-          "GO_API_USER and GO_API_PASSWORD) so the server can authenticate to " +
-          "it on the caller's behalf. You are signed in — this is a server " +
-          "configuration gap, not a session problem.",
+          "This route still goes to the optional legacy ERP API (GO_API_URL), " +
+          "not iag-maintenance. Product data uses your platform session via the " +
+          "gateway and needs no API key. Unset GO_API_URL for an IAG-only " +
+          "deploy, or set API_KEY for the old ERP if you still run it.",
       },
-      { status: 503 },
+      { status: 501 },
     );
   }
 
