@@ -2,7 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { useAppShell } from "@/components/app-shell";
-import { FACTORY_PARAM, FactoryScopeSelect } from "@/components/factory-scope-select";
+import { FactoryScopeSelect, effectiveFactory } from "@/components/factory-scope-select";
 import { MaintenanceOverview } from "@/components/maintenance-overview/maintenance-overview";
 import { NotificationsMenu } from "@/components/notifications-menu";
 import { PageMoreMenu } from "@/components/page-more-menu";
@@ -58,7 +58,7 @@ export default function MaintenanceDashboardPage() {
   // The factory the header picker put in the URL. Absent means every factory,
   // which is what these figures summed before there was a picker.
   const searchParams = useSearchParams();
-  const factory = (searchParams.get(FACTORY_PARAM) || "").trim();
+  const factory = effectiveFactory(searchParams);
 
   const machines = useMemo(() => {
     if (!hydrated) return [];

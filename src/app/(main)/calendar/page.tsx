@@ -14,7 +14,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, Menu, Printer } from "lucide-react";
 import { useAppShell } from "@/components/app-shell";
-import { FACTORY_PARAM, FactoryScopeSelect } from "@/components/factory-scope-select";
+import { FactoryScopeSelect, effectiveFactory } from "@/components/factory-scope-select";
 import { apiFetch } from "@/lib/api-auth";
 import {
   buildCalendar,
@@ -74,7 +74,7 @@ function MoveJob({ item, onMoved }: { item: ForecastItem; onMoved: (text: string
 
 export default function MaintenanceCalendarPage() {
   const { openSidebar } = useAppShell();
-  const factory = (useSearchParams().get(FACTORY_PARAM) || "").trim();
+  const factory = effectiveFactory(useSearchParams());
   const [start, setStart] = useState(() => yearFrom(todayIso()).from);
   const range = useMemo(() => yearFrom(start), [start]);
   const [section, setSection] = useState("");

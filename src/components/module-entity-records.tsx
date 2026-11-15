@@ -363,7 +363,7 @@ import {
 import { RequestOutcomeBanner } from "@/components/request-outcome-banner";
 import { DualMoney } from "@/components/dual-money";
 import { DivisionSelect } from "@/components/division-select";
-import { FACTORY_PARAM } from "@/components/factory-scope-select";
+import { effectiveFactory } from "@/components/factory-scope-select";
 import { SupplierCategorySelect } from "@/components/supplier-category-select";
 import { InvoicePaymentDialog } from "@/components/party-ledger-panel";
 import { SearchablePicker } from "@/components/searchable-picker";
@@ -3084,7 +3084,7 @@ function RecordFormModal({
   );
   const [roasterValue, setRoasterValue] = useState(() => state?.record?.roaster || "");
   const [lineValue, setLineValue] = useState(() => state?.record?.line || "");
-  const factoryInScope = (useSearchParams().get(FACTORY_PARAM) || "").trim();
+  const factoryInScope = effectiveFactory(useSearchParams());
   const [maintenancePickers, setMaintenancePickers] = useState<Record<string, string>>(() => {
     const out: Record<string, string> = {};
     for (const [key, picker] of Object.entries(MAINTENANCE_RECORD_PICKERS)) {
@@ -8186,7 +8186,7 @@ function EntityRecordsWorkspace({
     const tokens = normalized ? normalized.split(/\s+/).filter(Boolean) : [];
     const moneyEntity = definition.key === "receipts" || definition.key === "payments";
     const accountParam = (searchParams.get("account") || "").trim().toLowerCase();
-    const factoryScope = (searchParams.get(FACTORY_PARAM) || "").trim();
+    const factoryScope = effectiveFactory(searchParams);
     let result = displayRecords.filter((record) => {
       if (factoryScope) {
         const own = String(record.plantCode ?? "").trim();

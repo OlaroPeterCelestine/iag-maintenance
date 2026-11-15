@@ -13,7 +13,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Menu } from "lucide-react";
 import { useAppShell } from "@/components/app-shell";
-import { FACTORY_PARAM, FactoryScopeSelect } from "@/components/factory-scope-select";
+import { FactoryScopeSelect, effectiveFactory } from "@/components/factory-scope-select";
 import { apiFetch } from "@/lib/api-auth";
 import type { Forecast } from "@/lib/maintenance/calendar";
 import {
@@ -105,7 +105,7 @@ function RequestButton({
 
 export default function PartsForecastPage() {
   const { openSidebar } = useAppShell();
-  const factory = (useSearchParams().get(FACTORY_PARAM) || "").trim();
+  const factory = effectiveFactory(useSearchParams());
   const today = todayIso();
   const [months, setMonths] = useState<(typeof HORIZONS)[number]>(6);
   const [department, setDepartment] = useState("");

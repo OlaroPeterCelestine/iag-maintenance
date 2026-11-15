@@ -3,12 +3,10 @@
 /**
  * Which factory you are looking at.
  *
- * A factory is not a property of one list the way a status is — it is where
- * you are standing. IAG runs three, and a shop floor, a shift, a machine and a
- * downtime log all belong to one, so choosing it per table meant choosing it
- * again on every tab. It lives in the page header beside the module's tabs,
- * and the choice rides in the URL so it survives navigation between views and
- * can be sent to someone else as a link.
+ * Production and maintenance run as single-factory apps for now: every screen
+ * is pinned to one plant (default kampala, override with NEXT_PUBLIC_FIXED_PLANT).
+ * Multi-factory "All factories" returns later; until then the picker stays
+ * hidden and the URL always carries ?factory=.
  *
  * The shop floor, shift and machine filters stay on their own tables: those
  * are properties of what is listed, and they narrow within the factory.
@@ -21,6 +19,21 @@ import type { ManagerRecord } from "@/lib/manager-entities";
 
 /** The URL parameter every screen reads to know which factory is in scope. */
 export const FACTORY_PARAM = "factory";
+
+/**
+ * Plant code every production / maintenance screen runs under until
+ * multi-factory is turned back on. MES seed + jobs already default here.
+ */
+export const FIXED_FACTORY = (process.env.NEXT_PUBLIC_FIXED_PLANT || "kampala").trim();
+
+/** URL factory, else the fixed plant — never an empty "all factories" scope. */
+export function effectiveFactory(searchParams: { get(name: string): string | null }): string {
+  return (searchParams.get(FACTORY_PARAM) || FIXED_FACTORY || "").trim();
+}
+
+function factoryCode(row: ManagerRecord): string {
+  return String(row.code ?? row.id ?? "").trim();
+}
 
 export function FactoryScopeSelect() {
   const router = useRouter();
@@ -61,7 +74,7 @@ export function FactoryScopeSelect() {
         const body = (await res.json()) as { data?: ManagerRecord[] };
         if (!cancelled && Array.isArray(body.data)) setFetched(body.data);
       } catch {
-        /* the picker simply does not appear */
+        /* the label simply shows the code */
       }
     })();
     return () => {
@@ -70,11 +83,35 @@ export function FactoryScopeSelect() {
   }, [stored.length]);
 
   const factories = stored.length ? stored : fetched;
+  const pinned = FIXED_FACTORY;
+  const current = searchParams.get(FACTORY_PARAM) || "";
 
-  const current = searchParams.get(FACTORY_PARAM) || "all";
+  // Keep ?factory= on every route so dashboards, tables and boards never fall
+  // through to an unscoped "all plants" aggregation.
+  useEffect(() => {
+    if (!pinned) return;
+    if (current === pinned) return;
+    const next = new URLSearchParams(searchParams.toString());
+    next.set(FACTORY_PARAM, pinned);
+    const query = next.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }, [pinned, current, pathname, router, searchParams]);
 
-  // One factory is not a choice; showing a picker with a single option asks a
-  // question that has no second answer.
+  const label = useMemo(() => {
+    const match = factories.find((f) => factoryCode(f) === pinned);
+    return match ? String(match.name || match.code || pinned) : pinned;
+  }, [factories, pinned]);
+
+  // Single-factory mode: show where we are standing, not a choice.
+  if (pinned) {
+    return (
+      <p className="text-[12px] text-slate-500" title={`Factory scope: ${pinned}`}>
+        Factory <span className="font-medium text-slate-700 dark:text-slate-200">{label}</span>
+      </p>
+    );
+  }
+
+  // Multi-factory path (only if FIXED_FACTORY is cleared).
   if (factories.length < 2) return null;
 
   const choose = (value: string) => {
@@ -89,14 +126,14 @@ export function FactoryScopeSelect() {
     <label className="flex items-center gap-1.5 text-[12px] text-slate-500">
       Factory
       <select
-        value={current}
+        value={current || "all"}
         onChange={(event) => choose(event.target.value)}
         aria-label="Factory in scope"
         className="h-8 rounded-md border border-slate-200 bg-white px-2.5 text-[12px] text-slate-700 outline-none focus:border-ring focus:ring-2 focus:ring-ring/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
       >
         <option value="all">All factories</option>
         {factories.map((factory) => (
-          <option key={String(factory.code ?? factory.id)} value={String(factory.code ?? factory.id)}>
+          <option key={factoryCode(factory)} value={factoryCode(factory)}>
             {String(factory.name || factory.code || factory.id)}
           </option>
         ))}

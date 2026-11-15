@@ -14,7 +14,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, Menu } from "lucide-react";
 import { useAppShell } from "@/components/app-shell";
-import { FACTORY_PARAM, FactoryScopeSelect } from "@/components/factory-scope-select";
+import { FactoryScopeSelect, effectiveFactory } from "@/components/factory-scope-select";
 import { apiFetch } from "@/lib/api-auth";
 import type { Rec } from "@/lib/maintenance/machine-summary";
 import {
@@ -113,7 +113,7 @@ function JobCard({
 
 export default function PlannerPage() {
   const { openSidebar } = useAppShell();
-  const factory = (useSearchParams().get(FACTORY_PARAM) || "").trim();
+  const factory = effectiveFactory(useSearchParams());
   const [anchor, setAnchor] = useState(() => todayIso());
   const [refresh, setRefresh] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);

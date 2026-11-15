@@ -11,7 +11,7 @@ import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Menu, Printer } from "lucide-react";
 import { useAppShell } from "@/components/app-shell";
-import { FACTORY_PARAM, FactoryScopeSelect } from "@/components/factory-scope-select";
+import { FactoryScopeSelect, effectiveFactory } from "@/components/factory-scope-select";
 import { JobSheet } from "@/components/job-sheet";
 import { useMounted } from "@/hooks/use-mounted";
 import { enterUrl, selectForPrint, sheetModel } from "@/lib/maintenance/job-sheet";
@@ -21,7 +21,7 @@ export default function PrintJobSheetsPage() {
   const { openSidebar } = useAppShell();
   const mounted = useMounted();
   const params = useSearchParams();
-  const factory = (params.get(FACTORY_PARAM) || "").trim();
+  const factory = effectiveFactory(params);
   const nums = (params.get("nums") || "").split(",").map((s) => s.trim()).filter(Boolean);
   const [technician, setTechnician] = useState(params.get("technician") || "");
   const [date, setDate] = useState(params.get("date") || "");

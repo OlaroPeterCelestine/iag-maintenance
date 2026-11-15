@@ -11,7 +11,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Menu } from "lucide-react";
 import { useAppShell } from "@/components/app-shell";
-import { FACTORY_PARAM, FactoryScopeSelect } from "@/components/factory-scope-select";
+import { FactoryScopeSelect, effectiveFactory } from "@/components/factory-scope-select";
 import { apiFetch } from "@/lib/api-auth";
 import { formatWindow, plantTime, STATUS_LABEL, STATUS_TONE, type Shutdown, type ShutdownDetail } from "@/lib/maintenance/shutdown";
 import { useRecordLists } from "@/lib/maintenance/use-record-lists";
@@ -158,7 +158,7 @@ function PlanForm({ factory, onPlanned }: { factory: string; onPlanned: (code: s
 export default function ShutdownsPage() {
   const { openSidebar } = useAppShell();
   const router = useRouter();
-  const factory = (useSearchParams().get(FACTORY_PARAM) || "").trim();
+  const factory = effectiveFactory(useSearchParams());
   const [planning, setPlanning] = useState(false);
   const [answer, setAnswer] = useState<{ key: string; items: Shutdown[]; error: string }>({ key: "", items: [], error: "" });
   const loading = answer.key !== factory;

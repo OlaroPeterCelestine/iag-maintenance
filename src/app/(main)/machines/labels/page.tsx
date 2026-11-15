@@ -12,7 +12,7 @@ import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Menu, Printer } from "lucide-react";
 import { useAppShell } from "@/components/app-shell";
-import { FACTORY_PARAM, FactoryScopeSelect } from "@/components/factory-scope-select";
+import { FactoryScopeSelect, effectiveFactory } from "@/components/factory-scope-select";
 import { useMounted } from "@/hooks/use-mounted";
 import { machineUrl, qrSvg } from "@/lib/maintenance/qr";
 import { useRecordLists } from "@/lib/maintenance/use-record-lists";
@@ -20,7 +20,7 @@ import { useRecordLists } from "@/lib/maintenance/use-record-lists";
 export default function MachineLabelsPage() {
   const { openSidebar } = useAppShell();
   const mounted = useMounted();
-  const factory = (useSearchParams().get(FACTORY_PARAM) || "").trim();
+  const factory = effectiveFactory(useSearchParams());
   const [floor, setFloor] = useState("all");
   const { data, loading, errors } = useRecordLists(["work-centers"]);
 
