@@ -336,7 +336,7 @@ function AppSidebarImpl({
       >
         <div
           className={cn(
-            "mb-3 flex h-8 items-center",
+            "mb-2 flex h-7 items-center",
             collapsed ? "justify-center" : "justify-between px-1",
           )}
         >
@@ -394,9 +394,9 @@ function AppSidebarImpl({
                   onClick={navClick}
                   onMouseEnter={() => prefetchRoute(overviewHref)}
                   prefetch
-                  title={isContractorRole(sessionUser?.role) ? "Contractor home" : "Overview"}
+                  title={isContractorRole(sessionUser?.role) ? "Contractor home" : "Production"}
                   className={cn(
-                    "relative flex h-8 items-center gap-2.5 rounded-md text-left text-[13px] text-slate-500 transition-colors hover:bg-white hover:text-slate-800",
+                    "relative flex h-7 items-center gap-2 rounded-md text-left text-[12.5px] text-slate-500 transition-[color,background-color,transform] duration-150 hover:bg-white hover:text-slate-800",
                     collapsed ? "w-9 justify-center px-0" : "w-full px-2.5",
                     active === "dashboard" &&
                       "bg-orange-500 font-medium text-white shadow-sm hover:bg-orange-500 hover:text-white",
@@ -404,7 +404,7 @@ function AppSidebarImpl({
                 >
                   <Element3 size={15} variant="Linear" color="currentColor" />
                   {!collapsed && (
-                    <span>{isContractorRole(sessionUser?.role) ? "Home" : "Overview"}</span>
+                    <span>{isContractorRole(sessionUser?.role) ? "Home" : "Production"}</span>
                   )}
                 </Link>
               ) : null}
@@ -414,7 +414,7 @@ function AppSidebarImpl({
                   onClick={navClick}
                   title="Guides"
                   className={cn(
-                    "relative flex h-8 items-center gap-2.5 rounded-md text-left text-[13px] text-slate-500 transition-colors hover:bg-white hover:text-slate-800",
+                    "relative flex h-7 items-center gap-2 rounded-md text-left text-[12.5px] text-slate-500 transition-[color,background-color,transform] duration-150 hover:bg-white hover:text-slate-800",
                     collapsed ? "w-9 justify-center px-0" : "w-full px-2.5",
                     active === "guides" &&
                       "bg-orange-500 font-medium text-white shadow-sm hover:bg-orange-500 hover:text-white",
@@ -430,7 +430,7 @@ function AppSidebarImpl({
                   onClick={navClick}
                   title="Product development questions and answers"
                   className={cn(
-                    "relative flex h-8 items-center gap-2.5 rounded-md text-left text-[13px] text-slate-500 transition-colors hover:bg-white hover:text-slate-800",
+                    "relative flex h-7 items-center gap-2 rounded-md text-left text-[12.5px] text-slate-500 transition-[color,background-color,transform] duration-150 hover:bg-white hover:text-slate-800",
                     collapsed ? "w-9 justify-center px-0" : "w-full px-2.5",
                     active === "qna" &&
                       "bg-orange-500 font-medium text-white shadow-sm hover:bg-orange-500 hover:text-white",
@@ -446,7 +446,7 @@ function AppSidebarImpl({
                   onClick={navClick}
                   title="Release notes"
                   className={cn(
-                    "relative flex h-8 items-center gap-2.5 rounded-md text-left text-[13px] text-slate-500 transition-colors hover:bg-white hover:text-slate-800",
+                    "relative flex h-7 items-center gap-2 rounded-md text-left text-[12.5px] text-slate-500 transition-[color,background-color,transform] duration-150 hover:bg-white hover:text-slate-800",
                     collapsed ? "w-9 justify-center px-0" : "w-full px-2.5",
                     active === "release-notes" &&
                       "bg-orange-500 font-medium text-white shadow-sm hover:bg-orange-500 hover:text-white",
@@ -462,7 +462,7 @@ function AppSidebarImpl({
                   onClick={navClick}
                   title="Document templates"
                   className={cn(
-                    "relative flex h-8 items-center gap-2.5 rounded-md text-left text-[13px] text-slate-500 transition-colors hover:bg-white hover:text-slate-800",
+                    "relative flex h-7 items-center gap-2 rounded-md text-left text-[12.5px] text-slate-500 transition-[color,background-color,transform] duration-150 hover:bg-white hover:text-slate-800",
                     collapsed ? "w-9 justify-center px-0" : "w-full px-2.5",
                     active === "templates" &&
                       "bg-orange-500 font-medium text-white shadow-sm hover:bg-orange-500 hover:text-white",
@@ -478,7 +478,7 @@ function AppSidebarImpl({
                   onClick={navClick}
                   title="Comms — calendar, email, SMS"
                   className={cn(
-                    "relative flex h-8 items-center gap-2.5 rounded-md text-left text-[13px] text-slate-500 transition-colors hover:bg-white hover:text-slate-800",
+                    "relative flex h-7 items-center gap-2 rounded-md text-left text-[12.5px] text-slate-500 transition-[color,background-color,transform] duration-150 hover:bg-white hover:text-slate-800",
                     collapsed ? "w-9 justify-center px-0" : "w-full px-2.5",
                     active === "comms" &&
                       "bg-orange-500 font-medium text-white shadow-sm hover:bg-orange-500 hover:text-white",
@@ -494,7 +494,7 @@ function AppSidebarImpl({
                   onClick={navClick}
                   title="Accounting documents"
                   className={cn(
-                    "relative flex h-8 items-center gap-2.5 rounded-md text-left text-[13px] text-slate-500 transition-colors hover:bg-white hover:text-slate-800",
+                    "relative flex h-7 items-center gap-2 rounded-md text-left text-[12.5px] text-slate-500 transition-[color,background-color,transform] duration-150 hover:bg-white hover:text-slate-800",
                     collapsed ? "w-9 justify-center px-0" : "w-full px-2.5",
                     active === "accounting-documents" &&
                       "bg-orange-500 font-medium text-white shadow-sm hover:bg-orange-500 hover:text-white",
@@ -510,7 +510,7 @@ function AppSidebarImpl({
                   onClick={navClick}
                   title={deskNavLabel}
                   className={cn(
-                    "relative flex h-8 items-center gap-2.5 rounded-md text-left text-[13px] text-slate-500 transition-colors hover:bg-white hover:text-slate-800",
+                    "relative flex h-7 items-center gap-2 rounded-md text-left text-[12.5px] text-slate-500 transition-[color,background-color,transform] duration-150 hover:bg-white hover:text-slate-800",
                     collapsed ? "w-9 justify-center px-0" : "w-full px-2.5",
                     active === "payment-requests" &&
                       "bg-orange-500 font-medium text-white shadow-sm hover:bg-orange-500 hover:text-white",
@@ -541,7 +541,7 @@ function AppSidebarImpl({
           <div>
             {!collapsed && (
               <p className="mb-1.5 px-2 text-[10px] font-medium tracking-[0.06em] text-slate-400">
-                Engineering and Utilities
+                Production
               </p>
             )}
             <div className={cn("space-y-0.5", collapsed && "flex flex-col items-center")}>
@@ -567,7 +567,7 @@ function AppSidebarImpl({
                               onClick={navClick}
                               title={label}
                               className={cn(
-                                "relative flex h-8 items-center gap-2.5 rounded-md text-left text-[13px] transition-colors",
+                                "relative flex h-7 items-center gap-2 rounded-md text-left text-[12.5px] transition-colors",
                                 collapsed ? "w-9 justify-center px-0" : "w-full px-2.5",
                                 isActiveView
                                   ? "bg-slate-900 font-medium text-white shadow-sm hover:bg-slate-900 hover:text-white"
@@ -587,7 +587,7 @@ function AppSidebarImpl({
                       onMouseEnter={() => prefetchRoute(section.href)}
                       title={section.label}
                       className={cn(
-                        "relative flex h-8 items-center gap-2.5 rounded-md text-left text-[13px] transition-colors",
+                        "relative flex h-7 items-center gap-2 rounded-md text-left text-[12.5px] transition-colors",
                         collapsed ? "w-9 justify-center px-0" : "w-full px-2.5",
                         isActiveModule
                           ? "bg-orange-500 font-medium text-white shadow-sm hover:bg-orange-500 hover:text-white"
@@ -606,7 +606,7 @@ function AppSidebarImpl({
                           onClick={navClick}
                           title="Users & roles"
                           className={cn(
-                            "relative mt-0.5 flex h-8 items-center gap-2.5 rounded-md text-left text-[13px] text-slate-500 transition-colors hover:bg-white hover:text-slate-800",
+                            "relative mt-0.5 flex h-7 items-center gap-2 rounded-md text-left text-[12.5px] text-slate-500 transition-[color,background-color,transform] duration-150 hover:bg-white hover:text-slate-800",
                             collapsed ? "mx-auto w-9 justify-center px-0" : "w-full px-2.5",
                             active === "users" &&
                               "bg-orange-500 font-medium text-white shadow-sm hover:bg-orange-500 hover:text-white",
@@ -620,7 +620,7 @@ function AppSidebarImpl({
                           onClick={navClick}
                           title="Request emails"
                           className={cn(
-                            "relative mt-0.5 flex h-8 items-center gap-2.5 rounded-md text-left text-[13px] text-slate-500 transition-colors hover:bg-white hover:text-slate-800",
+                            "relative mt-0.5 flex h-7 items-center gap-2 rounded-md text-left text-[12.5px] text-slate-500 transition-[color,background-color,transform] duration-150 hover:bg-white hover:text-slate-800",
                             collapsed ? "mx-auto w-9 justify-center px-0" : "w-full px-2.5",
                             active === "request-emails" &&
                               "bg-orange-500 font-medium text-white shadow-sm hover:bg-orange-500 hover:text-white",
@@ -634,7 +634,7 @@ function AppSidebarImpl({
                           onClick={navClick}
                           title="App analytics"
                           className={cn(
-                            "relative mt-0.5 flex h-8 items-center gap-2.5 rounded-md text-left text-[13px] text-slate-500 transition-colors hover:bg-white hover:text-slate-800",
+                            "relative mt-0.5 flex h-7 items-center gap-2 rounded-md text-left text-[12.5px] text-slate-500 transition-[color,background-color,transform] duration-150 hover:bg-white hover:text-slate-800",
                             collapsed ? "mx-auto w-9 justify-center px-0" : "w-full px-2.5",
                             active === "analytics" &&
                               "bg-orange-500 font-medium text-white shadow-sm hover:bg-orange-500 hover:text-white",
@@ -648,7 +648,7 @@ function AppSidebarImpl({
                           onClick={navClick}
                           title="Activity logs"
                           className={cn(
-                            "relative mt-0.5 flex h-8 items-center gap-2.5 rounded-md text-left text-[13px] text-slate-500 transition-colors hover:bg-white hover:text-slate-800",
+                            "relative mt-0.5 flex h-7 items-center gap-2 rounded-md text-left text-[12.5px] text-slate-500 transition-[color,background-color,transform] duration-150 hover:bg-white hover:text-slate-800",
                             collapsed ? "mx-auto w-9 justify-center px-0" : "w-full px-2.5",
                             active === "activity-logs" &&
                               "bg-orange-500 font-medium text-white shadow-sm hover:bg-orange-500 hover:text-white",
@@ -662,7 +662,7 @@ function AppSidebarImpl({
                           onClick={navClick}
                           title="Crash analytics"
                           className={cn(
-                            "relative mt-0.5 flex h-8 items-center gap-2.5 rounded-md text-left text-[13px] text-slate-500 transition-colors hover:bg-white hover:text-slate-800",
+                            "relative mt-0.5 flex h-7 items-center gap-2 rounded-md text-left text-[12.5px] text-slate-500 transition-[color,background-color,transform] duration-150 hover:bg-white hover:text-slate-800",
                             collapsed ? "mx-auto w-9 justify-center px-0" : "w-full px-2.5",
                             active === "crash-analytics" &&
                               "bg-orange-500 font-medium text-white shadow-sm hover:bg-orange-500 hover:text-white",
@@ -676,7 +676,7 @@ function AppSidebarImpl({
                           onClick={navClick}
                           title="System health"
                           className={cn(
-                            "relative mt-0.5 flex h-8 items-center gap-2.5 rounded-md text-left text-[13px] text-slate-500 transition-colors hover:bg-white hover:text-slate-800",
+                            "relative mt-0.5 flex h-7 items-center gap-2 rounded-md text-left text-[12.5px] text-slate-500 transition-[color,background-color,transform] duration-150 hover:bg-white hover:text-slate-800",
                             collapsed ? "mx-auto w-9 justify-center px-0" : "w-full px-2.5",
                             active === "system-health" &&
                               "bg-orange-500 font-medium text-white shadow-sm hover:bg-orange-500 hover:text-white",
@@ -701,7 +701,7 @@ function AppSidebarImpl({
                 onClick={navClick}
                 title="Settings"
                 className={cn(
-                  "relative flex h-8 items-center gap-2.5 rounded-md text-left text-[13px] text-slate-500 transition-colors hover:bg-white hover:text-slate-800",
+                  "relative flex h-7 items-center gap-2 rounded-md text-left text-[12.5px] text-slate-500 transition-[color,background-color,transform] duration-150 hover:bg-white hover:text-slate-800",
                   collapsed ? "w-9 justify-center px-0" : "w-full px-2.5",
                   active === "settings" &&
                     "bg-orange-500 font-medium text-white shadow-sm hover:bg-orange-500 hover:text-white",
@@ -754,7 +754,7 @@ function AppSidebarImpl({
             title="Log out"
             onClick={handleLogout}
             className={cn(
-              "mt-1.5 flex items-center rounded-md text-left text-[13px] text-slate-500 transition-colors hover:bg-white hover:text-slate-800",
+              "mt-1.5 flex items-center rounded-md text-left text-[13px] text-slate-500 transition-[color,background-color,transform] duration-150 hover:bg-white hover:text-slate-800",
               collapsed ? "mx-auto size-9 justify-center px-0" : "h-8 w-full gap-2.5 px-2.5",
             )}
           >

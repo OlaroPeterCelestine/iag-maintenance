@@ -201,7 +201,7 @@ function ModulePageContent({ config }: { config: ModuleConfig }) {
             ) : null}
       </PageToolbar>
 
-      <main className="flex w-full flex-col gap-4 p-4 sm:p-5">
+      <main className="flex w-full flex-col gap-3 p-3 sm:p-4">
         <div>
           {viewingBankActivity ? (
             <Link

@@ -9,7 +9,6 @@ import {
   ModulePageSkeleton,
 } from "@/components/page-loading";
 import { PersistFailureToaster } from "@/components/persist-failure-toaster";
-import { OfflineOutboxIndicator } from "@/components/offline-outbox-indicator";
 import { RealtimeListener } from "@/components/realtime-listener";
 import { PwaRegister } from "@/components/pwa-register";
 import { UserActivityTracker } from "@/components/user-activity-tracker";
@@ -413,7 +412,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <ShellContext.Provider value={value}>
-      <div className="flex h-dvh w-full overflow-hidden bg-white">
+      <div className="flex h-dvh w-full overflow-hidden bg-white motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
         <Suspense fallback={null}>
           <AppSidebar
             open={sidebarOpen}
@@ -422,7 +421,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             onOpenSearch={openSearch}
           />
         </Suspense>
-        <div className="no-scrollbar flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden bg-[#fbfbfc]">
+        <div className="no-scrollbar flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden bg-[#fbfbfc] [scrollbar-gutter:stable]">
           <div className="flex min-h-0 flex-1 flex-col">
             {showContentShimmer ? (
               <ModulePageSkeleton />
@@ -435,7 +434,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <GlobalSearch open={searchOpen} onOpenChange={onSearchOpenChange} />
       <ForceChangePasswordDialog />
       <PersistFailureToaster />
-      <OfflineOutboxIndicator />
       <RealtimeListener />
       <UserActivityTracker />
       <PwaRegister />

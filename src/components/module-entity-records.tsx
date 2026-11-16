@@ -363,7 +363,7 @@ import {
 import { RequestOutcomeBanner } from "@/components/request-outcome-banner";
 import { DualMoney } from "@/components/dual-money";
 import { DivisionSelect } from "@/components/division-select";
-import { effectiveFactory } from "@/components/factory-scope-select";
+import { FACTORY_PARAM } from "@/components/factory-scope-select";
 import { SupplierCategorySelect } from "@/components/supplier-category-select";
 import { InvoicePaymentDialog } from "@/components/party-ledger-panel";
 import { SearchablePicker } from "@/components/searchable-picker";
@@ -599,13 +599,11 @@ const MAINTENANCE_RECORD_PICKERS: Record<
     dependsOn?: string;
     belongsTo?: (row: ManagerRecord) => string;
     dependsOnEmpty?: string;
-    /** Options that exist whatever the collection holds (e.g. "Everyone else"). */
-    fixed?: { value: string; label: string; meta?: string }[];
     option: (row: ManagerRecord) => { value: string; label: string; meta?: string } | null;
   }
 > = {
   workOrder: {
-    on: ["batch-records", "parts-used"],
+    on: ["batch-records"],
     entity: "work-orders",
     placeholder: "Select work order…",
     empty: "No open work orders — raise one under Work Orders first.",
@@ -655,74 +653,14 @@ const technicianPicker = (on: string[]) => ({
     return { value, label: value, meta: [row.role, row.plant].filter(Boolean).join(" · ") || undefined };
   },
 });
-MAINTENANCE_RECORD_PICKERS.assignee = technicianPicker(["work-orders", "fault-reports"]);
-// The machine this one is part of. Stores the asset tag, like every other
-// machine reference.
-MAINTENANCE_RECORD_PICKERS.parentMachine = {
-  on: ["work-centers"],
-  entity: "work-centers",
-  placeholder: "Select machine…",
-  empty: "No other machines yet.",
-  option: (row: ManagerRecord) => {
-    const value = (row.code || "").trim();
-    if (!value || statusMatchesInactive(row)) return null;
-    return {
-      value,
-      label: row.name && row.name !== value ? `${row.name} (${value})` : value,
-      meta: [row.plantCode, row.section].filter(Boolean).join(" / ") || undefined,
-    };
-  },
-};
-MAINTENANCE_RECORD_PICKERS.technician = technicianPicker(["batch-records", "parts-used"]);
-// Spare parts from the warehouse, for booking out against a work order or
-// asking procurement for more. The meta says what is free now.
-MAINTENANCE_RECORD_PICKERS.part = {
-  on: ["parts-used", "purchase-requests"],
-  entity: "spare-parts",
-  placeholder: "Select spare part…",
-  empty: "No spare parts yet — add them under Spare Parts.",
-  option: (row: ManagerRecord) => {
-    const value = (row.code || "").trim();
-    if (!value || /obsolete|blocked/i.test(row.status || "")) return null;
-    const free = (row.available || row.onHand || "0").trim();
-    return {
-      value,
-      label: row.name && row.name !== value ? `${row.name} (${value})` : value,
-      meta: [`${free} ${row.unit || ""} free`.trim(), row.fitsMachineTypes].filter(Boolean).join(" · "),
-    };
-  },
-};
-// Departments with a procurement budget, for a purchase request.
-MAINTENANCE_RECORD_PICKERS.department = {
-  on: ["purchase-requests"],
-  entity: "budget-departments",
-  placeholder: "Select department…",
-  empty: "No procurement budgets yet — procurement must create one first.",
-  option: (row: ManagerRecord) => {
-    const value = (row.name || "").trim();
-    return value ? { value, label: value, meta: [row.code, row.remaining ? `${row.remaining} left` : ""].filter(Boolean).join(" · ") } : null;
-  },
-};
-// Technician roles, for a labour rate. A role nobody holds yet can be typed;
-// "Everyone else" is the factory's rate for any role without its own.
-MAINTENANCE_RECORD_PICKERS.role = {
-  on: ["labour-rates"],
-  entity: "technicians",
-  placeholder: "Select role…",
-  empty: "No technician roles in MES — type one.",
-  allowCustom: true,
-  fixed: [{ value: "Everyone else", label: "Everyone else", meta: "Any role without its own rate" }],
-  option: (row: ManagerRecord) => {
-    const value = (row.role || "").trim();
-    return value ? { value, label: value } : null;
-  },
-};
+MAINTENANCE_RECORD_PICKERS.assignee = technicianPicker(["work-orders"]);
+MAINTENANCE_RECORD_PICKERS.technician = technicianPicker(["batch-records"]);
 MAINTENANCE_RECORD_PICKERS.supervisor = technicianPicker(["work-centers"]);
 MAINTENANCE_RECORD_PICKERS.reportedBy = technicianPicker(["downtime-logs"]);
 // MES plants — factories: where a machine stands, which factory a shop floor
 // belongs to, and the meter an energy reading came from.
 MAINTENANCE_RECORD_PICKERS.plantCode = {
-  on: ["energy", "work-centers", "sections", "labour-rates"],
+  on: ["energy", "work-centers", "sections"],
   entity: "plants",
   placeholder: "Select factory…",
   empty: "No factories yet — add one under Factories.",
@@ -756,48 +694,15 @@ MAINTENANCE_RECORD_PICKERS.section = {
   },
 };
 
-/**
- * Maintenance forms that mean different things on create and edit. A fault
- * report is written by whoever saw the fault and triaged by maintenance: the
- * triage fields have nothing to say until it exists, and the report itself is
- * not rewritten by the person triaging it. A work order's failure code and
- * approval belong to work that exists.
- */
-const MAINTENANCE_EDIT_ONLY_FIELDS: Record<string, string[]> = {
-  "fault-reports": ["decision", "priority", "assignee", "rejectedReason"],
-  "work-orders": [
-    "approvalDecision",
-    "approvalNote",
-    "failureProblem",
-    "failureCause",
-    "failureRemedy",
-    "failureNote",
-  ],
-};
-const MAINTENANCE_LOCKED_ON_EDIT: Record<string, string[]> = {
-  "fault-reports": ["workCenter", "title", "description", "machineStopped", "severity"],
-};
-function maintenanceFieldLocked(entityKey: string, fieldKey: string, mode: string | undefined) {
-  return mode === "edit" && Boolean(MAINTENANCE_LOCKED_ON_EDIT[entityKey]?.includes(fieldKey));
-}
-
 function maintenanceRecordOptions(fieldKey: string, values: Record<string, string> = {}) {
   const picker = MAINTENANCE_RECORD_PICKERS[fieldKey];
   if (!picker) return [];
   const parent = picker.dependsOn ? (values[picker.dependsOn] || "").trim() : "";
   if (picker.dependsOn && !parent) return [];
   const out: { value: string; label: string; meta?: string; searchText: string }[] = [];
-  const seen = new Set<string>();
-  for (const opt of picker.fixed || []) {
-    seen.add(opt.value);
-    out.push({ ...opt, searchText: `${opt.label} ${opt.meta || ""}` });
-  }
   for (const row of loadRecords("production", picker.entity)) {
     if (parent && picker.belongsTo && picker.belongsTo(row) !== parent) continue;
     const opt = picker.option(row);
-    // Several rows can name the same value (two technicians, one role).
-    if (opt && seen.has(opt.value)) continue;
-    if (opt) seen.add(opt.value);
     if (opt) out.push({ ...opt, searchText: `${opt.label} ${opt.meta || ""}` });
   }
   // Work orders newest first (WO-n); everything else alphabetical.
@@ -1380,7 +1285,7 @@ function ContractorInvoicesSection({
         id="contractor-invoices"
         className="rounded-xl border border-slate-200 bg-white shadow-sm"
       >
-        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-100 px-4 py-3">
+        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-100 px-3 py-2">
           <div className="min-w-0">
             <p className="text-[14px] font-semibold text-slate-800">Contractor invoices</p>
             <p className="mt-0.5 text-[11px] text-slate-400">
@@ -1486,15 +1391,15 @@ function ContractorInvoicesSection({
           </div>
         </div>
         {!ready && pickerRows.length === 0 && invoices.length === 0 ? (
-          <p className="px-4 py-8 text-center text-[12px] text-slate-400">
+          <p className="px-3 py-5 text-center text-[12px] text-slate-400">
             Loading contractor invoices…
           </p>
         ) : !contractor && pickerRows.length === 0 ? (
-          <p className="px-4 py-8 text-center text-[12px] text-slate-400">
+          <p className="px-3 py-5 text-center text-[12px] text-slate-400">
             Add a contractor first, then create invoices here.
           </p>
         ) : invoices.length === 0 ? (
-          <p className="px-4 py-8 text-center text-[12px] text-slate-400">
+          <p className="px-3 py-5 text-center text-[12px] text-slate-400">
             {showAll
               ? "No purchase invoices linked to contractors yet. Click New Contractor Invoice to create one."
               : (
@@ -1512,10 +1417,10 @@ function ContractorInvoicesSection({
             <table className="w-full min-w-[520px] text-left text-[12px]">
               <thead className="border-b border-slate-100 bg-slate-50/80 text-[11px] tracking-wide text-slate-500 uppercase">
                 <tr>
-                  <th className="px-4 py-2 font-medium">Reference</th>
-                  {showAll ? <th className="px-4 py-2 font-medium">Party</th> : null}
-                  <th className="px-4 py-2 font-medium">Date</th>
-                  <th className="px-4 py-2 font-medium">Status</th>
+                  <th className="px-3 py-1.5 font-medium">Reference</th>
+                  {showAll ? <th className="px-3 py-1.5 font-medium">Party</th> : null}
+                  <th className="px-3 py-1.5 font-medium">Date</th>
+                  <th className="px-3 py-1.5 font-medium">Status</th>
                   <th className="px-4 py-2 text-right font-medium">Amount</th>
                   <th className="px-4 py-2 text-right font-medium">Actions</th>
                 </tr>
@@ -1523,20 +1428,20 @@ function ContractorInvoicesSection({
               <tbody className="divide-y divide-slate-100">
                 {invoices.map((inv) => (
                   <tr key={inv.id} className="hover:bg-slate-50/80">
-                    <td className="px-4 py-2.5 font-medium text-slate-800">
+                    <td className="px-3 py-1.5 font-medium text-slate-800">
                       {inv.reference || inv.name || "Invoice"}
                     </td>
                     {showAll ? (
-                      <td className="px-4 py-2.5 text-slate-600">
+                      <td className="px-3 py-1.5 text-slate-600">
                         {inv.party || inv.supplier || "—"}
                       </td>
                     ) : null}
-                    <td className="px-4 py-2.5 text-slate-600">{inv.date || "—"}</td>
-                    <td className="px-4 py-2.5">{displayStatus(inv.status || "Draft")}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-800">
+                    <td className="px-3 py-1.5 text-slate-600">{inv.date || "—"}</td>
+                    <td className="px-3 py-1.5">{displayStatus(inv.status || "Draft")}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums text-slate-800">
                       {formatMoney(parseAmount(inv.amount || inv.total || "0"))}
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-3 py-1.5">
                       <div className="flex justify-end gap-1">
                         <Button
                           type="button"
@@ -2861,16 +2766,6 @@ const MES_MAINTENANCE_ENTITIES = new Set([
   "machine-performance",
   "plants",
   "sections",
-  "parts-used",
-  "labour-rates",
-  "job-costs",
-  "machine-costs",
-  "fault-reports",
-  "purchase-requests",
-  "budget-departments",
-  "checklist-steps",
-  "meter-readings",
-  "failure-causes",
 ]);
 
 function supportsSaveAsDraft(entityKey: string) {
@@ -3084,7 +2979,7 @@ function RecordFormModal({
   );
   const [roasterValue, setRoasterValue] = useState(() => state?.record?.roaster || "");
   const [lineValue, setLineValue] = useState(() => state?.record?.line || "");
-  const factoryInScope = effectiveFactory(useSearchParams());
+  const factoryInScope = (useSearchParams().get(FACTORY_PARAM) || "").trim();
   const [maintenancePickers, setMaintenancePickers] = useState<Record<string, string>>(() => {
     const out: Record<string, string> = {};
     for (const [key, picker] of Object.entries(MAINTENANCE_RECORD_PICKERS)) {
@@ -4272,9 +4167,6 @@ function RecordFormModal({
   }
 
   const visibleFields = formFields.filter((field) => {
-    if (state?.mode === "create" && MAINTENANCE_EDIT_ONLY_FIELDS[definition.key]?.includes(field.key)) {
-      return false;
-    }
     // Multi-currency opening balances use a dedicated control (not plain inputs).
     if (
       definition.key === "suppliers" &&
@@ -4603,7 +4495,7 @@ function RecordFormModal({
             className={
               isLocationEntityForm
                 ? "mt-5 grid grid-cols-1 gap-4"
-                : "mt-5 grid gap-4 sm:grid-cols-2"
+                : "mt-4 grid gap-3 sm:grid-cols-2"
             }
           >
             {isLocationEntityForm && state?.mode === "create" ? (
@@ -4673,10 +4565,7 @@ function RecordFormModal({
                 definition.key === "vehicles" && vehicleFieldPrefill[field.key]
                   ? `${field.key}-prefill-${vehiclePrefillTick}`
                   : field.key;
-              const fieldLocked =
-                readOnly ||
-                Boolean(field.readOnly) ||
-                maintenanceFieldLocked(definition.key, field.key, state?.mode);
+              const fieldLocked = readOnly || Boolean(field.readOnly);
               // Desk feedback (amend / reject) only appears when the record has a value.
               if (
                 field.readOnly &&
@@ -5198,10 +5087,7 @@ function RecordFormModal({
                 }
                 // A job card belongs to its work order for good; MES has no
                 // way to move one, so the picker locks once the card exists.
-                const locked =
-                  readOnly ||
-                  (state?.mode === "edit" && field.key === "workOrder") ||
-                  maintenanceFieldLocked(definition.key, field.key, state?.mode);
+                const locked = readOnly || (state?.mode === "edit" && field.key === "workOrder");
                 return (
                   <div key={field.key}>
                     <Label htmlFor={field.key} className="mb-2 text-[12px] text-slate-700">
@@ -5287,7 +5173,7 @@ function RecordFormModal({
                     <input type="hidden" name={field.key} value={current} />
                     <SearchablePicker
                       value={current}
-                      readOnly={readOnly || maintenanceFieldLocked(definition.key, field.key, state?.mode)}
+                      readOnly={readOnly}
                       allowClear={!field.required}
                       allowCustom
                       customLabel={(text) => `Use machine “${text}”`}
@@ -8186,7 +8072,7 @@ function EntityRecordsWorkspace({
     const tokens = normalized ? normalized.split(/\s+/).filter(Boolean) : [];
     const moneyEntity = definition.key === "receipts" || definition.key === "payments";
     const accountParam = (searchParams.get("account") || "").trim().toLowerCase();
-    const factoryScope = effectiveFactory(searchParams);
+    const factoryScope = (searchParams.get(FACTORY_PARAM) || "").trim();
     let result = displayRecords.filter((record) => {
       if (factoryScope) {
         const own = String(record.plantCode ?? "").trim();
@@ -8287,8 +8173,6 @@ function EntityRecordsWorkspace({
     const open = (searchParams.get("open") || "").trim();
     const wantNew = searchParams.get("new") === "1";
     const partyPrefill = (searchParams.get("party") || "").trim();
-    // From a machine's page (QR label): ?new=1&machine=TAG opens the form on it.
-    const machinePrefill = (searchParams.get("machine") || "").trim();
     const wantEdit =
       searchParams.get("edit") === "1" ||
       /^(edit|categorize)$/i.test(searchParams.get("mode") || "");
@@ -8297,10 +8181,10 @@ function EntityRecordsWorkspace({
     const moneyEntity = definition.key === "receipts" || definition.key === "payments";
 
     if (wantNew) {
-      const newKey = `new:${definition.key}:${partyPrefill}:${machinePrefill}`;
+      const newKey = `new:${definition.key}:${partyPrefill}`;
       if (openConsumedRef.current === newKey) return;
       openConsumedRef.current = newKey;
-      const seed: ManagerRecord | null = partyPrefill
+      const seed = partyPrefill
         ? ({
             id: "",
             createdAt: "",
@@ -8308,14 +8192,11 @@ function EntityRecordsWorkspace({
             party: partyPrefill,
             supplier: partyPrefill,
           } satisfies ManagerRecord)
-        : machinePrefill
-          ? ({ id: "", createdAt: "", updatedAt: "", workCenter: machinePrefill } satisfies ManagerRecord)
-          : null;
+        : null;
       setEditor({ mode: "create", record: seed });
       const params = new URLSearchParams(searchParams.toString());
       params.delete("new");
       params.delete("party");
-      params.delete("machine");
       const qs = params.toString();
       router.replace(`/${config.slug}${qs ? `?${qs}` : `?view=${definition.key}`}`);
       return;
@@ -9824,7 +9705,7 @@ function EntityRecordsWorkspace({
       <FeedbackModals feedback={feedback} onClose={close} />
       {detailId ? (
         !ready ? (
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
             <div className="mb-4 space-y-2">
               <div className="h-4 w-32 animate-shimmer rounded bg-slate-100" />
               <div className="h-7 w-56 animate-shimmer rounded bg-slate-100" />
@@ -10627,7 +10508,7 @@ function EntityRecordsWorkspace({
         )
       ) : (
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-3 border-b border-slate-100 px-3 py-2 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0 shrink">
             <h2 className="text-[14px] font-semibold text-slate-800">{definition.label}</h2>
             <p className="mt-0.5 text-[11px] text-slate-400">

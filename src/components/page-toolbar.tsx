@@ -12,8 +12,8 @@ import type { ReactNode } from "react";
 export function PageToolbar({ icon, children }: { icon?: ReactNode; children: ReactNode }) {
   const { openSidebar } = useAppShell();
   return (
-    <header className="flex h-11 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white px-3 sm:px-4">
-      <div className="flex items-center gap-2">
+    <header className="flex h-10 shrink-0 items-center justify-between border-b border-slate-200/70 bg-white/95 px-2.5 backdrop-blur-sm sm:px-3">
+      <div className="flex min-w-0 items-center gap-1.5">
         <Button
           variant="ghost"
           size="icon-sm"
@@ -21,11 +21,14 @@ export function PageToolbar({ icon, children }: { icon?: ReactNode; children: Re
           onClick={openSidebar}
           aria-label="Open navigation"
         >
-          <Menu size={18} />
+          <Menu size={17} />
         </Button>
-        <div className="flex min-w-0 items-center gap-2 text-[13px] text-slate-400">{icon}{children}</div>
+        <div className="flex min-w-0 items-center gap-1.5 text-[12.5px] leading-none text-slate-400">
+          {icon}
+          {children}
+        </div>
       </div>
-      <div className="flex items-center gap-0.5">
+      <div className="flex items-center gap-0">
         <NotificationsMenu />
         <ThemeToggle />
         <PageMoreMenu />

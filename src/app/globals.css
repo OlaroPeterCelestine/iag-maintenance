@@ -119,7 +119,11 @@
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
+  --radius: 0.5rem;
+  --desk-pad: 0.75rem;
+  --desk-gap: 0.75rem;
+  --desk-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --desk-duration: 140ms;
   --sidebar: oklch(0.975 0.003 255);
   --sidebar-foreground: oklch(0.35 0.02 255);
   --sidebar-primary: oklch(0.45 0.12 255);
@@ -354,6 +358,76 @@
   tr {
     page-break-inside: avoid;
   }
+}
+
+/*
+ * Compact desk + smoother motion — shared chrome for every IAG frontend.
+ * Keeps operators in denser lists/forms without rewriting every screen.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  a,
+  button,
+  [role="button"],
+  [role="menuitem"],
+  [role="tab"],
+  [role="option"],
+  input,
+  select,
+  textarea,
+  summary,
+  [data-slot="button"],
+  [data-slot="sidebar-menu-button"],
+  [data-slot="dialog-content"],
+  [data-slot="sheet-content"] {
+    transition-property: color, background-color, border-color, box-shadow, opacity,
+      transform, filter;
+    transition-duration: var(--desk-duration, 140ms);
+    transition-timing-function: var(--desk-ease, cubic-bezier(0.2, 0.8, 0.2, 1));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Tighter record tables and toolbar rhythm */
+[data-slot="table-container"] table th,
+[data-slot="table-container"] table td,
+.overflow-auto table th,
+.overflow-auto table td,
+.overflow-x-auto table th,
+.overflow-x-auto table td {
+  padding-block: 0.375rem;
+}
+
+/* Dense empty / loading cards that used the old p-6 chrome */
+.rounded-xl.border.border-slate-200.bg-white.p-6.shadow-sm,
+.rounded-xl.border.border-slate-200.bg-white.p-6 {
+  padding: 1rem;
+}
+
+/* Softer focus ring — cleaner, less jumpy */
+:focus-visible {
+  outline-offset: 1px;
+}
+
+/* Sidebar feel: quicker collapse, less visual noise */
+[data-slot="sidebar-inner"],
+[data-slot="sidebar-container"] {
+  transition-property: width, left, right, transform, opacity;
+  transition-duration: 180ms;
+  transition-timing-function: var(--desk-ease, cubic-bezier(0.2, 0.8, 0.2, 1));
 }
 
 /* Next.js N badge, error overlay, and Vercel toolbar — not for operators. */
