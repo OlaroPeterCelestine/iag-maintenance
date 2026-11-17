@@ -374,11 +374,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       const skipHydrate = consumeSkipHydrateOnce();
       // Force only after login / identity change — warm refreshes soft-hydrate.
-      const forceHydrate = isWithinLoginGrace() || bootEpoch > 0;
+      const forceHydrate = bootEpoch > 0 && !isWithinLoginGrace();
 
       try {
-        // Paint IndexedDB snapshot before network so refresh feels instant.
-        if (!skipHydrate && !forceHydrate) {
+        // Paint IndexedDB snapshot before network so refresh / login feel instant.
+        if (!skipHydrate) {
           try {
             const { restorePaintCache } = await import("@/lib/db/paint-cache");
             const { readAuthSession } = await import("@/lib/auth");
@@ -467,6 +467,36 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     [openSidebar, openSearch],
   );
 
+
+  // Defer shell satellites until idle after unlock (must run before any early return).
+  const [shellExtrasReady, setShellExtrasReady] = useState(false);
+  useEffect(() => {
+    const unlocked =
+      !((allowed && !bootReady) || (!allowed && !authReady));
+    if (!unlocked) {
+      setShellExtrasReady(false);
+      return;
+    }
+    let idleId: number | undefined;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const arm = () => {
+      if (typeof window.requestIdleCallback === "function") {
+        idleId = window.requestIdleCallback(() => setShellExtrasReady(true), {
+          timeout: 2500,
+        });
+      } else {
+        timeoutId = setTimeout(() => setShellExtrasReady(true), 400);
+      }
+    };
+    timeoutId = setTimeout(arm, 50);
+    return () => {
+      if (timeoutId !== undefined) clearTimeout(timeoutId);
+      if (idleId !== undefined && typeof window.cancelIdleCallback === "function") {
+        window.cancelIdleCallback(idleId);
+      }
+    };
+  }, [allowed, bootReady, authReady]);
+
   // First paint / session restore / guest redirect — never dashboard chrome
   // for a visitor who is still being sent to sign-in. After password login
   // (grace / session) never show LoginPageSkeleton — go straight to chrome.
@@ -483,6 +513,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const showContentShimmer =
     (allowed && !bootReady) || (!allowed && !authReady);
   const contentUnlocked = !showContentShimmer;
+
 
   // Full-shell gate: sidebar skeleton + page skeleton until unlock, then both
   // real chrome and route content mount in the same soft paint.
@@ -516,9 +547,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       ) : null}
       <ForceChangePasswordDialog />
       <PersistFailureToaster />
-      <RealtimeListener />
-      <UserActivityTracker />
-      <PwaRegister />
+      {shellExtrasReady ? <RealtimeListener /> : null}
+      {shellExtrasReady ? <UserActivityTracker /> : null}
+      {shellExtrasReady ? <PwaRegister /> : null}
     </ShellContext.Provider>
   );
 }

@@ -2679,18 +2679,17 @@ export async function hydrateFromDatabase(
     const migrated = migrateBusinessDataOutOfLocalStorage();
     scrubBusinessLocalStorage();
 
-    // Warm refresh: paint IndexedDB snapshot immediately (read cache only).
-    if (!options?.force) {
-      try {
-        const { restorePaintCache } = await import("@/lib/db/paint-cache");
-        const { readAuthSession } = await import("@/lib/auth");
-        const painted = await restorePaintCache(readAuthSession()?.userId);
-        if (painted) {
-          notifyHydrateUi({ phase: "paint-cache" });
-        }
-      } catch {
-        /* ignore */
+    // Always paint IndexedDB snapshot first (even on force) so chrome can unlock
+    // while the network catch-up runs — force still re-pulls below.
+    try {
+      const { restorePaintCache } = await import("@/lib/db/paint-cache");
+      const { readAuthSession } = await import("@/lib/auth");
+      const painted = await restorePaintCache(readAuthSession()?.userId);
+      if (painted) {
+        notifyHydrateUi({ phase: "paint-cache" });
       }
+    } catch {
+      /* ignore */
     }
 
     let changed = migrated;
@@ -3037,8 +3036,15 @@ export async function hydrateFromDatabase(
       }
     };
 
-    // Interactive phase: open route + badge data only (do not load every module page).
-    await pullKeys(priorityKeys);
+    // Cap priority wait so hydrate return / navigation stay free.
+    // Remainder continues; prefetchRouteData also warms the active view.
+    await Promise.race([
+      pullKeys(priorityKeys),
+      new Promise<void>((resolve) => {
+        window.setTimeout(resolve, 1_200);
+      }),
+    ]);
+    void pullKeys(priorityKeys, { yieldBetween: true });
 
     // If Postgres reported data but priority pulls failed (auth race), retry once.
     if (remoteHadData && priorityKeys.length) {

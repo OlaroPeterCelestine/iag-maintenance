@@ -297,9 +297,6 @@ function AppSidebarImpl({
       } catch {
         /* ignore */
       }
-      // Warm the entity workspace chunk before click.
-      void import("@/components/module-entity-records");
-      void import("@/components/module-page");
     },
     [router],
   );
