@@ -1,23 +1,47 @@
 "use client";
 
+import dynamic from "next/dynamic";
+
 import { AppSidebar } from "@/components/app-sidebar";
-import { ForceChangePasswordDialog } from "@/components/change-password-dialog";
-import { GlobalSearch } from "@/components/global-search";
+const ForceChangePasswordDialog = dynamic(
+  () =>
+    import("@/components/change-password-dialog").then(
+      (m) => m.ForceChangePasswordDialog,
+    ),
+  { ssr: false },
+);
+const GlobalSearch = dynamic(
+  () => import("@/components/global-search").then((m) => m.GlobalSearch),
+  { ssr: false },
+);
 import {
   BootSplash,
   LoginPageSkeleton,
   ModulePageSkeleton,
 } from "@/components/page-loading";
-import { PersistFailureToaster } from "@/components/persist-failure-toaster";
-import { RealtimeListener } from "@/components/realtime-listener";
-import { PwaRegister } from "@/components/pwa-register";
-import { UserActivityTracker } from "@/components/user-activity-tracker";
+const PersistFailureToaster = dynamic(
+  () => import("@/components/persist-failure-toaster").then((m) => m.PersistFailureToaster),
+  { ssr: false },
+);
+const RealtimeListener = dynamic(
+  () => import("@/components/realtime-listener").then((m) => m.RealtimeListener),
+  { ssr: false },
+);
+const PwaRegister = dynamic(
+  () => import("@/components/pwa-register").then((m) => m.PwaRegister),
+  { ssr: false },
+);
+const UserActivityTracker = dynamic(
+  () => import("@/components/user-activity-tracker").then((m) => m.UserActivityTracker),
+  { ssr: false },
+);
 import {
   clearDemoDataOnce,
   removeCashAtHandAccountOnce,
 } from "@/lib/clear-demo-data";
 import {
   bindPersistFlushOnUnload,
+  DB_SYNC_READY_EVENT,
   flushPendingPersists,
   hydrateFromDatabase,
   hydrateLedgerFromDatabase,
@@ -337,29 +361,57 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     let cancelled = false;
     const BOOT_RELOAD_KEY = "financeiag-boot-reload-v1";
 
+    // Unlock as soon as hydrate reaches interactive (bootstrap + settings).
+    const onHydrateReady = (event: Event) => {
+      const phase = (event as CustomEvent<{ phase?: string }>).detail?.phase;
+      if (
+        phase === "interactive" ||
+        phase === "paint-cache" ||
+        phase === "badge" ||
+        phase === "catalog"
+      ) {
+        if (!cancelled) setBootReady(true);
+      }
+    };
+    window.addEventListener(DB_SYNC_READY_EVENT, onHydrateReady);
+
     async function boot() {
       if (!FRONTEND_ONLY) {
         scrubBusinessLocalStorage();
       }
 
       const skipHydrate = consumeSkipHydrateOnce();
+      // Force only after login / identity change — warm refreshes soft-hydrate.
+      const forceHydrate = isWithinLoginGrace() || bootEpoch > 0;
 
       try {
+        // Paint IndexedDB snapshot before network so refresh feels instant.
+        if (!skipHydrate && !forceHydrate) {
+          try {
+            const { restorePaintCache } = await import("@/lib/db/paint-cache");
+            const { readAuthSession } = await import("@/lib/auth");
+            const painted = await restorePaintCache(readAuthSession()?.userId);
+            if (painted && !cancelled) setBootReady(true);
+          } catch {
+            /* ignore */
+          }
+        }
+
         // Cap hydrate so a hung API cannot leave the shimmer forever.
         await Promise.race([
           (async () => {
             if (!skipHydrate) {
               try {
-                await hydrateFromDatabase({ force: true });
+                await hydrateFromDatabase({ force: forceHydrate });
               } catch {
-                /* keep local cache */
+                /* keep paint cache / memory */
               }
             } else {
               markDbHydratedThisTab(true);
             }
           })(),
           new Promise<void>((resolve) => {
-            window.setTimeout(resolve, 8_000);
+            window.setTimeout(resolve, forceHydrate ? 8_000 : 4_000);
           }),
         ]);
         if (cancelled) return;
@@ -405,6 +457,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     void boot();
     return () => {
       cancelled = true;
+      window.removeEventListener(DB_SYNC_READY_EVENT, onHydrateReady);
     };
   }, [allowed, bootEpoch]);
 
@@ -483,7 +536,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </div>
-      <GlobalSearch open={searchOpen} onOpenChange={onSearchOpenChange} />
+      {searchOpen ? (
+        <GlobalSearch open={searchOpen} onOpenChange={onSearchOpenChange} />
+      ) : null}
       <ForceChangePasswordDialog />
       <PersistFailureToaster />
       <RealtimeListener />

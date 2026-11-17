@@ -1,11 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import {
-  exportDocumentPdf,
-  printDocument,
-  supportsDocumentPdf,
-} from "@/lib/export/document-pdf";
+import { supportsDocumentPdf } from "@/lib/export/supports-document-pdf";
 import { emailDocument } from "@/lib/export/email-document";
 import {
   COMPANY_LETTERHEAD_CSS,
@@ -95,6 +91,7 @@ export function DocumentExportActions({
         return;
       }
       if (kind === "print") {
+        const { printDocument } = await import("@/lib/export/document-pdf");
         printDocument(entityKey, entityLabel, record);
         return;
       }
@@ -117,6 +114,7 @@ export function DocumentExportActions({
             department: record.department,
           });
         } else {
+          const { exportDocumentPdf } = await import("@/lib/export/document-pdf");
           await exportDocumentPdf(entityKey, entityLabel, record);
         }
         onInfo?.("PDF downloaded", `${entityLabel} PDF saved to your downloads.`);

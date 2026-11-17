@@ -142,7 +142,7 @@ const nextConfig: NextConfig = {
       process.env.NODE_ENV === "production" ? { exclude: ["error"] } : false,
   },
   experimental: {
-    optimizePackageImports: ["iconsax-react", "lucide-react"],
+    optimizePackageImports: ["iconsax-react", "lucide-react", "recharts", "date-fns"],
   },
   async headers() {
     // Only pin HTML Cache-Control in production. Next warns (and can break HMR)

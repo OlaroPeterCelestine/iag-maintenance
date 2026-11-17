@@ -725,7 +725,7 @@ function notifyHydrateUi(detail?: Record<string, unknown>) {
   );
   window.dispatchEvent(new CustomEvent("financeiag-ledger-changed"));
   window.dispatchEvent(new CustomEvent("financeiag-settings-changed"));
-  window.dispatchEvent(new CustomEvent(DB_SYNC_READY_EVENT));
+  window.dispatchEvent(new CustomEvent(DB_SYNC_READY_EVENT, { detail: detail || {} }));
 }
 
 /** Optimistic concurrency tokens from GET/PUT /api/records/:module/:entity */
@@ -2679,6 +2679,20 @@ export async function hydrateFromDatabase(
     const migrated = migrateBusinessDataOutOfLocalStorage();
     scrubBusinessLocalStorage();
 
+    // Warm refresh: paint IndexedDB snapshot immediately (read cache only).
+    if (!options?.force) {
+      try {
+        const { restorePaintCache } = await import("@/lib/db/paint-cache");
+        const { readAuthSession } = await import("@/lib/auth");
+        const painted = await restorePaintCache(readAuthSession()?.userId);
+        if (painted) {
+          notifyHydrateUi({ phase: "paint-cache" });
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
     let changed = migrated;
     let remoteHadData = false;
 
@@ -3080,6 +3094,16 @@ export async function hydrateFromDatabase(
     // Empty ledger_lines from API stay empty — reports print from that log only.
     notifyHydrateUi({ phase: "interactive" });
     hydrateBusy = false;
+    // Persist a read-only paint snapshot for the next hard refresh.
+    void (async () => {
+      try {
+        const { savePaintCache } = await import("@/lib/db/paint-cache");
+        const { readAuthSession } = await import("@/lib/auth");
+        await savePaintCache(readAuthSession()?.userId);
+      } catch {
+        /* ignore */
+      }
+    })();
 
     // Warm ledger revision off the interactive path (bootstrap may already have it).
     if (!ledgerLinesRevision) {
