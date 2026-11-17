@@ -49,8 +49,7 @@ var SEAL=!DEV;
 var PREFIX=${JSON.stringify(APP_KEY_PREFIX)};
 var ALLOW=${JSON.stringify(SESSION_STORAGE_ALLOWLIST)};
 function blocked(store,key){
-if(!DEV)return;
-try{console.warn('[storage-guard] blocked '+store+' write "'+key+'" — persist via the API instead.');}catch(e){}
+/* silent — production browsers must stay free of console noise */
 }
 var ls=null;try{ls=window.localStorage;}catch(e){}
 if(ls){

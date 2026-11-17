@@ -2705,9 +2705,7 @@ export async function hydrateFromDatabase(
         budgetMs: 2_000,
         timeoutMs: 2_500,
       });
-      if (!ready && !isWithinLoginGrace()) {
-        console.error("[sync] hydrate auth gate: data access not confirmed yet");
-      }
+
     } catch {
       /* proceed — bootstrap/ready are the hard checks */
     }
@@ -2750,16 +2748,6 @@ export async function hydrateFromDatabase(
         const { isHandlingUnauthorized, isWithinLoginGrace } = await import(
           "@/lib/api-auth"
         );
-        if (
-          typeof window !== "undefined" &&
-          !isHandlingUnauthorized() &&
-          !isWithinLoginGrace() &&
-          shouldToastApiUnreachable()
-        ) {
-          console.error(
-            "[sync] Database API unreachable on hydrate — forms cannot save until the API is online.",
-          );
-        }
         hydrateBusy = false;
         return changed;
       }
@@ -3067,11 +3055,7 @@ export async function hydrateFromDatabase(
           ) &&
           !getMemoryLedgerAccounts().length &&
           !getMemoryLedgerLines().length;
-        if (stillEmpty && typeof window !== "undefined") {
-          console.error(
-            "[sync] Signed in, but business data could not be loaded on hydrate. Hard-refresh, or sign out and sign in again. Use one host only (localhost or 127.0.0.1).",
-          );
-        }
+
       }
     }
 

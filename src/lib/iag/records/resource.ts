@@ -175,7 +175,6 @@ async function runAfterWrite(
   try {
     return await spec.afterWrite({ ctx, mode, record, row, saved });
   } catch (err) {
-    console.error("[iag/records] afterWrite failed", spec.path, mode, err);
     if (spec.afterWriteRequired) throw err;
     return null;
   }
@@ -213,7 +212,6 @@ export function resourceAdapter(spec: ResourceSpec): RecordAdapter {
       } catch (err) {
         // The list is still correct without the extra columns; losing it
         // entirely because a secondary endpoint blipped would not be.
-        console.error("[iag/records] augment failed", spec.path, err);
         return records;
       }
     },

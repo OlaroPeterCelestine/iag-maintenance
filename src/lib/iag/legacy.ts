@@ -92,7 +92,6 @@ async function legacyBearer(): Promise<string> {
     return await legacyLoginInFlight;
   } catch (err) {
     legacySession = null;
-    console.warn("[iag/legacy]", err instanceof Error ? err.message : err);
     return "";
   }
 }
