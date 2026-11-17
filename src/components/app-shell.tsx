@@ -133,17 +133,41 @@ function canMountShellOptimistically(pathname: string): boolean {
   );
 }
 
+/** Right after password login — never flash LoginPageSkeleton / boot shimmer. */
+function isPostLoginUnlock(): boolean {
+  if (typeof window === "undefined") return false;
+  return isWithinLoginGrace() || isAuthenticated();
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [authReady, setAuthReady] = useState(false);
-  const [allowed, setAllowed] = useState(false);
-  const [shellMounted, setShellMounted] = useState(false);
-  /** First Postgres hydrate finished — keep shimmer until then so refresh never flashes empty tables. */
-  const [bootReady, setBootReady] = useState(false);
-  const optimisticBooted = useRef(false);
+  // First client paint: if we already have a session / login grace, mount the
+  // real shell immediately — do not show LoginPageSkeleton for one frame.
+  const [allowed, setAllowed] = useState(() => canMountShellOptimistically(pathname));
+  const [shellMounted, setShellMounted] = useState(() =>
+    canMountShellOptimistically(pathname),
+  );
+  /**
+   * UI unlocked after first hydrate — except right after login, where grace
+   * skips the shimmer so the dashboard paints immediately while hydrate runs.
+   */
+  const [bootReady, setBootReady] = useState(() => isPostLoginUnlock());
+  /** Keep the boot skeleton painted briefly while real content fades in. */
+  const [bootOverlayVisible, setBootOverlayVisible] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return !isPostLoginUnlock();
+  });
+  const [bootOverlayOpaque, setBootOverlayOpaque] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return !isPostLoginUnlock();
+  });
+  /** Bumps when identity changes so hydrate re-runs even if `allowed` stays true. */
+  const [bootEpoch, setBootEpoch] = useState(0);
+  const optimisticBooted = useRef(canMountShellOptimistically(pathname));
   // Who the shell last booted for — a same-user session refresh must not reboot.
   const bootedUserId = useRef<string | null>(null);
   const active = useMemo(() => activeFromPath(pathname), [pathname]);
@@ -308,7 +332,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [allowed, pathname]);
 
   useEffect(() => {
-    if (!allowed || bootReady) return;
+    if (!allowed) return;
     bindPersistFlushOnUnload();
     let cancelled = false;
     const BOOT_RELOAD_KEY = "financeiag-boot-reload-v1";
@@ -382,7 +406,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [allowed, bootReady]);
+  }, [allowed, bootEpoch]);
+
+  // Crossfade boot shimmer → content so unlock never hard-cuts.
+  useEffect(() => {
+    const showShimmer =
+      (allowed && !bootReady) || (!allowed && !authReady);
+    if (showShimmer) {
+      setBootOverlayVisible(true);
+      setBootOverlayOpaque(true);
+      return;
+    }
+    const fade = window.setTimeout(() => setBootOverlayOpaque(false), 16);
+    const hide = window.setTimeout(() => setBootOverlayVisible(false), 320);
+    return () => {
+      window.clearTimeout(fade);
+      window.clearTimeout(hide);
+    };
+  }, [allowed, bootReady, authReady]);
 
   const openSearch = useCallback(() => setSearchOpen(true), []);
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
@@ -398,36 +439,47 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
 
   // First paint / session restore / guest redirect — never dashboard chrome
-  // for a visitor who is still being sent to sign-in.
-  if (!shellMounted) {
+  // for a visitor who is still being sent to sign-in. After password login
+  // (grace / session) never show LoginPageSkeleton — go straight to chrome.
+  if (!shellMounted && !isPostLoginUnlock()) {
     if (isPublicMainPath(pathname)) {
       return <BootSplash />;
     }
     return <LoginPageSkeleton />;
   }
 
-  // Shimmer while auth restore or first DB hydrate is still running — never blank white.
+  // Hold real routes until hydrate unlocks — overlay covers the first paint.
+  // Right after login, bootReady starts true so content paints immediately.
   const showContentShimmer =
     (allowed && !bootReady) || (!allowed && !authReady);
+  const contentUnlocked = !showContentShimmer;
 
   return (
     <ShellContext.Provider value={value}>
       <div className="flex h-dvh w-full overflow-hidden bg-white motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
-        <Suspense fallback={null}>
-          <AppSidebar
-            open={sidebarOpen}
-            onClose={closeSidebar}
-            active={active}
-            onOpenSearch={openSearch}
-          />
-        </Suspense>
+        <AppSidebar
+          open={sidebarOpen}
+          onClose={closeSidebar}
+          active={active}
+          onOpenSearch={openSearch}
+        />
         <div className="no-scrollbar flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden bg-[#fbfbfc] [scrollbar-gutter:stable]">
-          <div className="flex min-h-0 flex-1 flex-col">
-            {showContentShimmer ? (
-              <ModulePageSkeleton />
-            ) : (
-              <Suspense fallback={<ModulePageSkeleton />}>{children}</Suspense>
-            )}
+          <div className="relative flex min-h-0 flex-1 flex-col">
+            {contentUnlocked ? (
+              <div className="flex min-h-0 flex-1 flex-col animate-in fade-in duration-300 fill-mode-both">
+                <Suspense fallback={<ModulePageSkeleton />}>{children}</Suspense>
+              </div>
+            ) : null}
+            {bootOverlayVisible ? (
+              <div
+                className={`absolute inset-0 z-10 flex min-h-0 flex-col bg-[#fbfbfc] transition-opacity duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                  bootOverlayOpaque ? "opacity-100" : "pointer-events-none opacity-0"
+                }`}
+                aria-hidden={!bootOverlayOpaque}
+              >
+                <ModulePageSkeleton />
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

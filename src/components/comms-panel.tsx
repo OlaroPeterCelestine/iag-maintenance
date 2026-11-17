@@ -1,5 +1,7 @@
 "use client";
 
+import { useMounted } from "@/hooks/use-mounted";
+
 import { useAppShell } from "@/components/app-shell";
 import { NotificationsMenu } from "@/components/notifications-menu";
 import { PageMoreMenu } from "@/components/page-more-menu";
@@ -92,6 +94,11 @@ export function CommsPanel() {
   const [selectedDate, setSelectedDate] = useState(() =>
     new Date().toISOString().slice(0, 10),
   );
+  const mounted = useMounted();
+  const [todayIso, setTodayIso] = useState("");
+  useEffect(() => {
+    if (mounted) setTodayIso(new Date().toISOString().slice(0, 10));
+  }, [mounted]);
   const [busy, setBusy] = useState(false);
   const [emailForm, setEmailForm] = useState(() => emptyCommDraft("email"));
   const [smsForm, setSmsForm] = useState(() => emptyCommDraft("sms"));
@@ -457,7 +464,7 @@ export function CommsPanel() {
                 }
                 const dayMessages = byDate.get(cell.date) || [];
                 const active = cell.date === selectedDate;
-                const isToday = cell.date === new Date().toISOString().slice(0, 10);
+                const isToday = Boolean(todayIso) && cell.date === todayIso;
                 return (
                   <button
                     key={cell.date}

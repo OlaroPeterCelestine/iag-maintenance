@@ -13,6 +13,7 @@ import {
 import { paymentRequestBucket } from "@/lib/payment-requests-monitor";
 import { loadRecords } from "@/lib/records-store";
 import { cn } from "@/lib/utils";
+import { useMounted } from "@/hooks/use-mounted";
 import { useRecordsSyncTick } from "@/hooks/use-records-sync-tick";
 import Link from "next/link";
 import { useMemo } from "react";
@@ -104,6 +105,7 @@ function buildCashflow(currency: string): CashflowRow[] {
 }
 
 export function ProjectCashflowPanel() {
+  const mounted = useMounted();
   const { tick } = useRecordsSyncTick([
     { module: "projects", entity: "projects" },
     { module: "projects", entity: "project-expenses" },
@@ -112,12 +114,15 @@ export function ProjectCashflowPanel() {
     { module: "projects", entity: "progress-certificates" },
     { module: "projects", entity: "procurement-list" },
   ]);
-  const currency = loadManagerSettings().baseCurrencyCode || "UGX";
+  const currency = mounted
+    ? loadManagerSettings().baseCurrencyCode || "UGX"
+    : "UGX";
 
   const rows = useMemo(() => {
     void tick;
+    if (!mounted) return [];
     return buildCashflow(currency);
-  }, [tick, currency]);
+  }, [tick, currency, mounted]);
 
   const totals = useMemo(
     () =>

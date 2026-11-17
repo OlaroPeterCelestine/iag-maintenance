@@ -43,14 +43,7 @@ export function ChartOfAccountsSelect({
 }) {
   const filterKey = `${bankLike ? "bank" : ""}|${types?.join(",") || ""}`;
 
-  const [options, setOptions] = useState<CoaSelectOption[]>(() =>
-    typeof window === "undefined"
-      ? []
-      : coaAccountSelectOptions({
-          bankLike: bankLike || undefined,
-          types: types?.length ? types : undefined,
-        }),
-  );
+  const [options, setOptions] = useState<CoaSelectOption[]>(() => []);
 
   useEffect(() => {
     const refresh = () =>

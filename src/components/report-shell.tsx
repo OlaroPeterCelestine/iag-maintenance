@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button";
 import type { TableExport } from "@/lib/export/table-export";
 import { DocumentText, Printer, Refresh } from "iconsax-react";
 import Link from "next/link";
+import { useMounted } from "@/hooks/use-mounted";
 import {
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -53,6 +55,21 @@ export function ReportPrintButton({
  * Full on-page report document: letterhead, title, filters, body, and one
  * Print / PDF / Excel / CSV toolbar.
  */
+function ReportShellPreparedAt({ source }: { source?: string }) {
+  const mounted = useMounted();
+  const [preparedAt, setPreparedAt] = useState("");
+  useEffect(() => {
+    if (!mounted) return;
+    setPreparedAt(new Date().toLocaleString());
+  }, [mounted]);
+  return (
+    <p className="mt-1 text-[10px] text-slate-400 print:block">
+      Prepared {preparedAt || "—"}
+      {source === "" ? "" : ` · ${source ?? "From posted ledger log"}`}
+    </p>
+  );
+}
+
 export function ReportShell({
   title,
   description,
@@ -90,9 +107,7 @@ export function ReportShell({
               {description ? (
                 <p className="mt-1 text-[12px] text-slate-500">{description}</p>
               ) : null}
-              <p className="mt-1 text-[10px] text-slate-400 print:block">
-                Prepared {new Date().toLocaleString()} · From posted ledger log
-              </p>
+              <ReportShellPreparedAt />
             </div>
             <div className="flex flex-wrap items-center gap-2" data-print-hide>
               <ReportExportMenu

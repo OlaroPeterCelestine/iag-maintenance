@@ -30,9 +30,7 @@ export function DivisionSelect({
   /** Narrower control for line-item tables. */
   compact?: boolean;
 }) {
-  const [options, setOptions] = useState(() =>
-    typeof window === "undefined" ? [] : divisionSelectOptions(),
-  );
+  const [options, setOptions] = useState(() => [] as ReturnType<typeof divisionSelectOptions>);
 
   useEffect(() => {
     const refresh = () => setOptions(divisionSelectOptions());

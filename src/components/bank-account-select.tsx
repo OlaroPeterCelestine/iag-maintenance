@@ -33,9 +33,7 @@ export function BankAccountSelect({
   emptyLabel?: string;
   showHint?: boolean;
 }) {
-  const [options, setOptions] = useState(() =>
-    typeof window === "undefined" ? [] : bankAccountSelectOptions(),
-  );
+  const [options, setOptions] = useState(() => [] as ReturnType<typeof bankAccountSelectOptions>);
 
   useEffect(() => {
     const refresh = () => setOptions(bankAccountSelectOptions());

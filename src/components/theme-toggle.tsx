@@ -11,6 +11,7 @@ import {
   type ThemeMode,
 } from "@/lib/theme";
 import { Monitor, Moon, Sun } from "lucide-react";
+import { useMounted } from "@/hooks/use-mounted";
 import { useEffect, useState } from "react";
 
 /** Small hook shared by the header toggle and the settings control. */
@@ -61,6 +62,7 @@ export function ThemeToggle() {
 /** Settings control: choose Light, Dark, or System. */
 export function ThemeModeChooser() {
   const { mode, setTheme } = useThemeMode();
+  const mounted = useMounted();
   const options: { value: ThemeMode; label: string; icon: typeof Sun }[] = [
     { value: "light", label: "Light", icon: Sun },
     { value: "dark", label: "Dark", icon: Moon },
@@ -83,11 +85,11 @@ export function ThemeModeChooser() {
           >
             <Icon size={14} className="mr-1.5" />
             {option.label}
-            {option.value === "system" && (
+            {option.value === "system" && mounted ? (
               <span className="ml-1 text-[10px] opacity-70">
                 ({systemPrefersDark() ? "dark" : "light"})
               </span>
-            )}
+            ) : null}
           </Button>
         );
       })}

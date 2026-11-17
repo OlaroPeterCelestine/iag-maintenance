@@ -204,9 +204,7 @@ export function WarningModal({
   const [amount, setAmount] = useState(amountValue);
   const [paymentMethod, setPaymentMethod] = useState(paymentMethodValue);
   const [bankAccount, setBankAccount] = useState(bankAccountValue);
-  const [bankOptions, setBankOptions] = useState<{ value: string; label: string }[]>(() =>
-    typeof window === "undefined" ? [] : bankAccountSelectOptions(),
-  );
+  const [bankOptions, setBankOptions] = useState<{ value: string; label: string }[]>(() => []);
   const [fieldError, setFieldError] = useState("");
   const buttonClass =
     "h-9 min-w-[96px] flex-1 px-4 text-[13px] sm:flex-none";

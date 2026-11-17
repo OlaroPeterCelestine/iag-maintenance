@@ -34,7 +34,7 @@ function scrubLegacyTokenStorage() {
   try {
     sessionStorage.removeItem(TOKEN_KEY);
     sessionStorage.removeItem(TOKEN_EXPIRES_KEY);
-    sessionStorage.removeItem(LOGIN_GRACE_UNTIL_KEY);
+    // Keep LOGIN_GRACE_UNTIL_KEY — it must survive hard post-login navigations.
   } catch {
     /* ignore */
   }
@@ -49,7 +49,33 @@ function scrubLegacyTokenStorage() {
 function readGraceUntil(): number {
   if (typeof window === "undefined") return 0;
   if (lastLoginTokenAt) return lastLoginTokenAt + LOGIN_AUTH_GRACE_MS;
+  try {
+    const raw = sessionStorage.getItem(LOGIN_GRACE_UNTIL_KEY);
+    const n = Number(raw);
+    if (Number.isFinite(n) && n > Date.now()) return n;
+  } catch {
+    /* ignore */
+  }
   return 0;
+}
+
+function writeGraceUntil(until: number) {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(LOGIN_GRACE_UNTIL_KEY, String(until));
+  } catch {
+    /* ignore */
+  }
+}
+
+function clearGraceUntil() {
+  lastLoginTokenAt = 0;
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.removeItem(LOGIN_GRACE_UNTIL_KEY);
+  } catch {
+    /* ignore */
+  }
 }
 
 export function setApiToken(token: string, expiresAt?: string) {
@@ -63,6 +89,8 @@ export function setApiToken(token: string, expiresAt?: string) {
   memoryToken = token;
   memoryTokenExpiresAt = expiresAt || null;
   scrubLegacyTokenStorage();
+  // Persist grace across hard navigations so AppShell skips the boot shimmer.
+  writeGraceUntil(lastLoginTokenAt + LOGIN_AUTH_GRACE_MS);
 }
 
 export function clearApiToken() {
@@ -90,7 +118,7 @@ export function forceClearApiToken() {
   if (typeof window === "undefined") return;
   authEpoch += 1;
   probeAuthCache = null;
-  lastLoginTokenAt = 0;
+  clearGraceUntil();
   memoryToken = null;
   memoryTokenExpiresAt = null;
   scrubLegacyTokenStorage();

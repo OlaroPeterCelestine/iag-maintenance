@@ -34,9 +34,7 @@ export function SupplierCategorySelect({
   extraNames?: string[];
   emptyLabel?: string;
 }) {
-  const [options, setOptions] = useState(() =>
-    typeof window === "undefined" ? [] : supplierCategorySelectOptions(extraNames),
-  );
+  const [options, setOptions] = useState(() => [] as ReturnType<typeof supplierCategorySelectOptions>);
 
   useEffect(() => {
     const refresh = () => setOptions(supplierCategorySelectOptions(extraNames));

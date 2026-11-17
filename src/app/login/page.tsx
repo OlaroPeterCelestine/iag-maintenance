@@ -156,18 +156,13 @@ function LoginForm() {
         setLoading(false);
         return;
       }
-      // Short confirmation only. The login grace window already trusts this token,
-      // so a cold API must not hold the button — the shell hydrates in the
-      // background exactly as it does on a normal page load.
-      await waitForDataAccess({
-        attempts: 2,
-        delayMs: 200,
-        budgetMs: 1200,
-        timeoutMs: 2500,
-      });
-      // Hard navigate so AppShell remounts cleanly for the new user (no stale
-      // bootReady / previous identity painted from the soft SPA transition).
-      window.location.assign(safePostLoginPath(searchParams));
+      // Go straight to the home route — do not wait on a cold API probe here.
+      // Login grace + sessionStorage identity unlock AppShell without the boot
+      // shimmer; hydrate continues in the background on the dashboard.
+      const dest = safePostLoginPath(searchParams ?? new URLSearchParams());
+      // Soft SPA navigation keeps the in-memory JWT + grace so the shell paints
+      // the real dashboard immediately (hard assign used to flash LoginPageSkeleton).
+      router.replace(dest);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
       setLoading(false);
