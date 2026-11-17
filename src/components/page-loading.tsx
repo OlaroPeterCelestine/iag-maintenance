@@ -134,8 +134,12 @@ export function ModulePageSkeleton() {
 /** Auth / layout gate — sidebar + content pulse so the shell never feels blank. */
 export function ShellLoadingSkeleton() {
   return (
-    <div className="flex h-dvh w-full overflow-hidden bg-white" aria-busy aria-label="Loading">
-      <aside className="hidden w-[232px] shrink-0 border-r border-slate-200 bg-white md:flex md:flex-col">
+    <div
+      className="flex h-dvh w-full overflow-hidden bg-white motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-500"
+      aria-busy
+      aria-label="Loading"
+    >
+      <aside className="hidden w-[232px] shrink-0 border-r border-slate-200/80 bg-white md:flex md:flex-col">
         <div className="border-b border-slate-100 px-4 py-4">
           <Skeleton className="h-8 w-28 bg-slate-100" />
         </div>

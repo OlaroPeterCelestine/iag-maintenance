@@ -18,6 +18,7 @@ import {
   BootSplash,
   LoginPageSkeleton,
   ModulePageSkeleton,
+  ShellLoadingSkeleton,
 } from "@/components/page-loading";
 const PersistFailureToaster = dynamic(
   () => import("@/components/persist-failure-toaster").then((m) => m.PersistFailureToaster),
@@ -180,15 +181,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
    * skips the shimmer so the dashboard paints immediately while hydrate runs.
    */
   const [bootReady, setBootReady] = useState(() => isPostLoginUnlock());
-  /** Keep the boot skeleton painted briefly while real content fades in. */
-  const [bootOverlayVisible, setBootOverlayVisible] = useState(() => {
-    if (typeof window === "undefined") return true;
-    return !isPostLoginUnlock();
-  });
-  const [bootOverlayOpaque, setBootOverlayOpaque] = useState(() => {
-    if (typeof window === "undefined") return true;
-    return !isPostLoginUnlock();
-  });
   /** Bumps when identity changes so hydrate re-runs even if `allowed` stays true. */
   const [bootEpoch, setBootEpoch] = useState(0);
   const optimisticBooted = useRef(canMountShellOptimistically(pathname));
@@ -461,22 +453,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     };
   }, [allowed, bootEpoch]);
 
-  // Crossfade boot shimmer → content so unlock never hard-cuts.
-  useEffect(() => {
-    const showShimmer =
-      (allowed && !bootReady) || (!allowed && !authReady);
-    if (showShimmer) {
-      setBootOverlayVisible(true);
-      setBootOverlayOpaque(true);
-      return;
-    }
-    const fade = window.setTimeout(() => setBootOverlayOpaque(false), 16);
-    const hide = window.setTimeout(() => setBootOverlayVisible(false), 320);
-    return () => {
-      window.clearTimeout(fade);
-      window.clearTimeout(hide);
-    };
-  }, [allowed, bootReady, authReady]);
 
   const openSearch = useCallback(() => setSearchOpen(true), []);
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
@@ -501,15 +477,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return <LoginPageSkeleton />;
   }
 
-  // Hold real routes until hydrate unlocks — overlay covers the first paint.
-  // Right after login, bootReady starts true so content paints immediately.
+  // Hold real routes until hydrate unlocks. Sidebar + page unlock together —
+  // never paint real nav alone over a content-only shimmer.
+  // Right after login, bootReady starts true so chrome + page paint as one.
   const showContentShimmer =
     (allowed && !bootReady) || (!allowed && !authReady);
   const contentUnlocked = !showContentShimmer;
 
+  // Full-shell gate: sidebar skeleton + page skeleton until unlock, then both
+  // real chrome and route content mount in the same soft paint.
+  if (!contentUnlocked) {
+    return (
+      <ShellContext.Provider value={value}>
+        <ShellLoadingSkeleton />
+      </ShellContext.Provider>
+    );
+  }
+
   return (
     <ShellContext.Provider value={value}>
-      <div className="flex h-dvh w-full overflow-hidden bg-white motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
+      <div className="flex h-dvh w-full overflow-hidden bg-white motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-500">
         <AppSidebar
           open={sidebarOpen}
           onClose={closeSidebar}
@@ -517,22 +504,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           onOpenSearch={openSearch}
         />
         <div className="no-scrollbar flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden bg-[#fbfbfc] [scrollbar-gutter:stable]">
-          <div className="relative flex min-h-0 flex-1 flex-col">
-            {contentUnlocked ? (
-              <div className="flex min-h-0 flex-1 flex-col animate-in fade-in duration-300 fill-mode-both">
-                <Suspense fallback={<ModulePageSkeleton />}>{children}</Suspense>
-              </div>
-            ) : null}
-            {bootOverlayVisible ? (
-              <div
-                className={`absolute inset-0 z-10 flex min-h-0 flex-col bg-[#fbfbfc] transition-opacity duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-                  bootOverlayOpaque ? "opacity-100" : "pointer-events-none opacity-0"
-                }`}
-                aria-hidden={!bootOverlayOpaque}
-              >
-                <ModulePageSkeleton />
-              </div>
-            ) : null}
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="flex min-h-0 flex-1 flex-col animate-in fade-in duration-500 fill-mode-both">
+              <Suspense fallback={<ModulePageSkeleton />}>{children}</Suspense>
+            </div>
           </div>
         </div>
       </div>
